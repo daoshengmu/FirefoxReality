@@ -24,6 +24,8 @@ static vrb::Vector sHomePosition(0.0f, 1.7f, 0.0f);
 
 struct DeviceDelegateNoAPI::State {
   vrb::ContextWeak context;
+  device::RenderMode renderMode;
+  ImmersiveDisplayPtr display;
   ControllerDelegatePtr controller;
   vrb::CameraSimplePtr camera;
   vrb::Color clearColor;
@@ -31,10 +33,18 @@ struct DeviceDelegateNoAPI::State {
   vrb::Matrix headingMatrix;
   vrb::Vector position;
   bool clicked;
+  float width, height;
+  float near, far;
   State()
-      : headingMatrix(vrb::Matrix::Identity())
+      : renderMode(device::RenderMode::StandAlone)
+      , heading(0.0f)
+      , headingMatrix(vrb::Matrix::Identity())
       , position(sHomePosition)
       , clicked(false)
+      , width(100.0f)
+      , height(100.0f)
+      , near(0.1f)
+      , far(1000.0f)
   {
   }
 
@@ -44,6 +54,23 @@ struct DeviceDelegateNoAPI::State {
   }
 
   void Shutdown() {
+  }
+
+  void UpdateDisplay() {
+    if (display) {
+      vrb::Matrix fov = vrb::Matrix::PerspectiveMatrixWithResolutionDegrees(width * 0.5f, height,
+                                                                            60.0f, -1.0f,
+                                                                            near,
+                                                                            far);
+      float left(0.0f), right(0.0f), top(0.0f), bottom(0.0f), n2(0.0f), f2(0.0f);
+      fov.DecomposePerspectiveDegrees(left, right, top, bottom, n2, f2);
+      display->SetFieldOfView(device::Eye::Left, left, right, top, bottom);
+      display->SetFieldOfView(device::Eye::Right, left, right, top, bottom);
+      display->SetEyeResolution((int32_t)(width * 0.5f), (int32_t)height);
+      display->SetEyeOffset(device::Eye::Left, -0.01f, 0.0f, 0.0f);
+      display->SetEyeOffset(device::Eye::Right, 0.01f, 0.0f, 0.0f);
+      display->SetCapabilityFlags(device::Position | device::Orientation | device::Present);
+    }
   }
 };
 
@@ -55,12 +82,31 @@ DeviceDelegateNoAPI::Create(vrb::ContextWeak aContext) {
   return result;
 }
 
+void
+DeviceDelegateNoAPI::SetRenderMode(const device::RenderMode aMode) {
+  m.renderMode = aMode;
+}
+
+device::RenderMode
+DeviceDelegateNoAPI::GetRenderMode() {
+  return m.renderMode;
+}
+
+void
+DeviceDelegateNoAPI::RegisterImmersiveDisplay(ImmersiveDisplayPtr aDisplay) {
+  m.display = aDisplay;
+  if (m.display) {
+    m.display->SetDeviceName("NoAPI");
+    m.UpdateDisplay();
+  }
+}
+
 GestureDelegateConstPtr
 DeviceDelegateNoAPI::GetGestureDelegate() {
   return nullptr;
 }
 vrb::CameraPtr
-DeviceDelegateNoAPI::GetCamera(const CameraEnum) {
+DeviceDelegateNoAPI::GetCamera(const device::Eye) {
   return m.camera;
 }
 
@@ -77,6 +123,9 @@ DeviceDelegateNoAPI::SetClearColor(const vrb::Color& aColor) {
 void
 DeviceDelegateNoAPI::SetClipPlanes(const float aNear, const float aFar) {
   m.camera->SetClipRange(aNear, aFar);
+  m.near = aNear;
+  m.far = aFar;
+  m.UpdateDisplay();
 }
 
 void
@@ -117,7 +166,7 @@ DeviceDelegateNoAPI::StartFrame() {
 }
 
 void
-DeviceDelegateNoAPI::BindEye(const CameraEnum) {
+DeviceDelegateNoAPI::BindEye(const device::Eye) {
   // noop
 }
 
@@ -136,6 +185,9 @@ DeviceDelegateNoAPI::SetViewport(const int aWidth, const int aHeight) {
   }
   VRB_LOG("********* SETTING VIEWPORT %d %d", aWidth, aHeight);
   VRB_GL_CHECK(glViewport(0, 0, aWidth, aHeight));
+  m.width = (float)aWidth;
+  m.height = (float)aHeight;
+  m.UpdateDisplay();
 }
 
 

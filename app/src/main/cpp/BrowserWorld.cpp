@@ -5,8 +5,14 @@
 
 #include "BrowserWorld.h"
 #include "ControllerDelegate.h"
+#include "Device.h"
+#include "DeviceDelegate.h"
+#include "ExternalBlitter.h"
+#include "ExternalVR.h"
+#include "GeckoSurfaceTexture.h"
 #include "Widget.h"
 #include "WidgetPlacement.h"
+#include "VRBrowser.h"
 #include "vrb/CameraSimple.h"
 #include "vrb/Color.h"
 #include "vrb/ConcreteClass.h"
@@ -30,6 +36,7 @@
 #include "vrb/Transform.h"
 #include "vrb/VertexArray.h"
 #include "vrb/Vector.h"
+
 #include <array>
 #include <functional>
 #include <vrb/include/vrb/TextureGL.h>
@@ -45,18 +52,6 @@ static const float kScrollFactor = 20.0f; // Just picked what fell right.
 static const float kWorldDPIRatio = 2.0f/720.0f;
 
 static crow::BrowserWorld* sWorld;
-
-static const char* kDispatchCreateWidgetName = "dispatchCreateWidget";
-static const char* kDispatchCreateWidgetSignature = "(ILandroid/graphics/SurfaceTexture;II)V";
-static const char* kHandleMotionEventName = "handleMotionEvent";
-static const char* kHandleMotionEventSignature = "(IIZFF)V";
-static const char* kHandleScrollEvent = "handleScrollEvent";
-static const char* kHandleScrollEventSignature = "(IIFF)V";
-static const char* kHandleAudioPoseName = "handleAudioPose";
-static const char* kHandleAudioPoseSignature = "(FFFFFFF)V";
-static const char* kHandleGestureName = "handleGesture";
-static const char* kHandleGestureSignature = "(I)V";
-static const char* kTileTexture = "tile.png";
 
 class SurfaceObserver;
 typedef std::shared_ptr<SurfaceObserver> SurfaceObserverPtr;
@@ -337,7 +332,6 @@ ControllerContainer::SetScrolledDelta(const int32_t aControllerIndex, const floa
 
 } // namespace
 
-
 namespace crow {
 
 struct BrowserWorld::State {
@@ -365,20 +359,14 @@ struct BrowserWorld::State {
   float farClip;
   JNIEnv* env;
   jobject activity;
-  jmethodID dispatchCreateWidgetMethod;
-  jmethodID handleMotionEventMethod;
-  jmethodID handleScrollEventMethod;
-  jmethodID handleAudioPoseMethod;
-  jmethodID handleGestureMethod;
   GestureDelegateConstPtr gestures;
+  ExternalVRPtr externalVR;
+  ExternalBlitterPtr blitter;
   bool windowsInitialized;
   TransformPtr skybox;
 
   State() : paused(true), glInitialized(false), env(nullptr), nearClip(0.1f),
             farClip(100.0f), activity(nullptr),
-            dispatchCreateWidgetMethod(nullptr), handleMotionEventMethod(nullptr),
-            handleScrollEventMethod(nullptr), handleAudioPoseMethod(nullptr),
-            handleGestureMethod(nullptr),
             windowsInitialized(false) {
     context = Context::Create();
     contextWeak = context;
@@ -398,13 +386,14 @@ struct BrowserWorld::State {
     controllers = ControllerContainer::Create();
     controllers->context = contextWeak;
     controllers->root = Toggle::Create(contextWeak);
+    externalVR = ExternalVR::Create();
+    blitter = ExternalBlitter::Create(contextWeak);
   }
 
   void UpdateControllers();
   WidgetPtr GetWidget(int32_t aHandle) const;
   WidgetPtr FindWidget(const std::function<bool(const WidgetPtr&)>& aCondition) const;
 };
-
 
 void
 BrowserWorld::State::UpdateControllers() {
@@ -433,7 +422,7 @@ BrowserWorld::State::UpdateControllers() {
         }
       }
     }
-    if (handleMotionEventMethod && hitWidget) {
+    if (hitWidget) {
       active.push_back(hitWidget.get());
       float theX = 0.0f, theY = 0.0f;
       hitWidget->ConvertToWidgetCoordinates(hitPoint, theX, theY);
@@ -446,14 +435,13 @@ BrowserWorld::State::UpdateControllers() {
           (controller.pointerY != theY) ||
           (controller.widget != handle) ||
           (pressed != wasPressed)) {
-        env->CallVoidMethod(activity, handleMotionEventMethod, handle, controller.index,
-                            pressed, theX, theY);
+        VRBrowser::HandleMotionEvent(handle, controller.index, jboolean(pressed), theX, theY);
         controller.widget = handle;
         controller.pointerX = theX;
         controller.pointerY = theY;
       }
       if ((controller.scrollDeltaX != 0.0f) || controller.scrollDeltaY != 0.0f) {
-        env->CallVoidMethod(activity, handleScrollEventMethod, controller.widget, controller.index,
+        VRBrowser::HandleScrollEvent(controller.widget, controller.index,
                             controller.scrollDeltaX, controller.scrollDeltaY);
         controller.scrollDeltaX = 0.0f;
         controller.scrollDeltaY = 0.0f;
@@ -463,7 +451,7 @@ BrowserWorld::State::UpdateControllers() {
           if (!controller.wasTouched) {
             controller.wasTouched = controller.touched;
           } else {
-            env->CallVoidMethod(activity, handleScrollEventMethod, controller.widget,
+            VRBrowser::HandleScrollEvent(controller.widget,
                                 controller.index,
                                 (controller.touchX - controller.lastTouchX) * kScrollFactor,
                                 (controller.touchY - controller.lastTouchY) * kScrollFactor);
@@ -475,9 +463,8 @@ BrowserWorld::State::UpdateControllers() {
           controller.lastTouchX = controller.lastTouchY = 0.0f;
         }
       }
-    } else if (handleMotionEventMethod && controller.widget) {
-      env->CallVoidMethod(activity, handleMotionEventMethod, 0, controller.index,
-                          false, 0.0f, 0.0f);
+    } else if (controller.widget) {
+      VRBrowser::HandleMotionEvent(0, controller.index, JNI_FALSE, 0.0f, 0.0f);
       controller.widget = 0;
     }
   }
@@ -489,14 +476,14 @@ BrowserWorld::State::UpdateControllers() {
     const int32_t gestureCount = gestures->GetGestureCount();
     for (int32_t count = 0; count < gestureCount; count++) {
       const GestureType type = gestures->GetGestureType(count);
-      int32_t javaType = -1;
+      jint javaType = -1;
       if (type == GestureType::SwipeLeft) {
         javaType = GestureSwipeLeft;
       } else if (type == GestureType::SwipeRight) {
         javaType = GestureSwipeRight;
       }
-      if (javaType >= 0 &&handleGestureMethod) {
-        env->CallVoidMethod(activity, handleGestureMethod, javaType);
+      if (javaType >= 0) {
+        VRBrowser::HandleGesture(javaType);
       }
     }
   }
@@ -538,13 +525,14 @@ BrowserWorld::RegisterDeviceDelegate(DeviceDelegatePtr aDelegate) {
   DeviceDelegatePtr previousDevice = std::move(m.device);
   m.device = aDelegate;
   if (m.device) {
+    m.device->RegisterImmersiveDisplay(m.externalVR);
 #if defined(SNAPDRAGONVR)
     m.device->SetClearColor(vrb::Color(0.0f, 0.0f, 0.0f));
 #else
     m.device->SetClearColor(vrb::Color(0.15f, 0.15f, 0.15f));
 #endif
-    m.leftCamera = m.device->GetCamera(DeviceDelegate::CameraEnum::Left);
-    m.rightCamera = m.device->GetCamera(DeviceDelegate::CameraEnum::Right);
+    m.leftCamera = m.device->GetCamera(device::Eye::Left);
+    m.rightCamera = m.device->GetCamera(device::Eye::Right);
     ControllerDelegatePtr delegate = m.controllers;
     m.device->SetClipPlanes(m.nearClip, m.farClip);
     m.device->SetControllerDelegate(delegate);
@@ -597,35 +585,10 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     return;
   }
 
-  m.dispatchCreateWidgetMethod = m.env->GetMethodID(clazz, kDispatchCreateWidgetName,
-                                                 kDispatchCreateWidgetSignature);
-  if (!m.dispatchCreateWidgetMethod) {
-    VRB_LOG("Failed to find Java method: %s %s", kDispatchCreateWidgetName, kDispatchCreateWidgetSignature);
-  }
+  VRBrowser::InitializeJava(m.env, m.activity);
+  GeckoSurfaceTexture::InitializeJava(m.env, m.activity);
 
-  m.handleMotionEventMethod = m.env->GetMethodID(clazz, kHandleMotionEventName, kHandleMotionEventSignature);
-
-  if (!m.handleMotionEventMethod) {
-    VRB_LOG("Failed to find Java method: %s %s", kHandleMotionEventName, kHandleMotionEventSignature);
-  }
-
-  m.handleScrollEventMethod = m.env->GetMethodID(clazz, kHandleScrollEvent, kHandleScrollEventSignature);
-
-  if (!m.handleScrollEventMethod) {
-    VRB_LOG("Failed to find Java method: %s %s", kHandleScrollEvent, kHandleScrollEventSignature)
-  }
-
-  m.handleAudioPoseMethod =  m.env->GetMethodID(clazz, kHandleAudioPoseName, kHandleAudioPoseSignature);
-
-  if (!m.handleAudioPoseMethod) {
-    VRB_LOG("Failed to find Java method: %s %s", kHandleAudioPoseName, kHandleAudioPoseSignature);
-  }
-
-  m.handleGestureMethod = m.env->GetMethodID(clazz, kHandleGestureName, kHandleGestureSignature);
-
-  if (!m.handleGestureMethod) {
-    VRB_LOG("Failed to find Java method: %s %s", kHandleGestureName, kHandleGestureSignature);
-  }
+  VRBrowser::RegisterExternalContext((jlong)m.externalVR->GetSharedData());
 
   if (!m.controllers->modelsLoaded) {
     const int32_t modelCount = m.device->GetControllerModelCount();
@@ -654,6 +617,8 @@ BrowserWorld::InitializeGL() {
       m.glInitialized = m.context->InitializeGL();
       VRB_GL_CHECK(glEnable(GL_BLEND));
       VRB_GL_CHECK(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+      VRB_GL_CHECK(glEnable(GL_DEPTH_TEST));
+      VRB_GL_CHECK(glEnable(GL_CULL_FACE));
       if (!m.glInitialized) {
         return;
       }
@@ -672,15 +637,13 @@ BrowserWorld::InitializeGL() {
 void
 BrowserWorld::ShutdownJava() {
   VRB_LOG("BrowserWorld::ShutdownJava");
+  GeckoSurfaceTexture::ShutdownJava();
+  VRBrowser::ShutdownJava();
   if (m.env) {
     m.env->DeleteGlobalRef(m.activity);
   }
   m.activity = nullptr;
-  m.dispatchCreateWidgetMethod = nullptr;
-  m.handleMotionEventMethod = nullptr;
-  m.handleScrollEventMethod = nullptr;
-  m.handleAudioPoseMethod = nullptr;
-  m.handleGestureMethod = nullptr;
+
   m.env = nullptr;
 }
 
@@ -714,58 +677,31 @@ BrowserWorld::Draw() {
   m.device->ProcessEvents();
   m.context->Update();
   m.UpdateControllers();
-  m.drawListOpaque->Reset();
-  m.drawListTransparent->Reset();
-
-  m.rootOpaqueParent->Cull(*m.cullVisitor, *m.drawListOpaque);
-
-  m.device->StartFrame();
-
-
-  vrb::Vector headPosition = m.device->GetHeadTransform().GetTranslation();
-  m.skybox->SetTransform(vrb::Matrix::Translation(headPosition));
-  m.rootTransparent->SortNodes([=](const NodePtr& a, const NodePtr& b) {
-    return DistanceToNode(a, headPosition) < DistanceToNode(b, headPosition);
-  });
-  m.rootTransparent->Cull(*m.cullVisitor, *m.drawListTransparent);
-
-  m.device->BindEye(DeviceDelegate::CameraEnum::Left);
-  m.drawListOpaque->Draw(*m.leftCamera);
-  VRB_GL_CHECK(glDepthMask(GL_FALSE));
-  m.drawListTransparent->Draw(*m.leftCamera);
-  VRB_GL_CHECK(glDepthMask(GL_TRUE));
-  // When running the noapi flavor, we only want to render one eye.
-#if !defined(VRBROWSER_NO_VR_API)
-  m.device->BindEye(DeviceDelegate::CameraEnum::Right);
-  m.drawListOpaque->Draw(*m.rightCamera);
-  VRB_GL_CHECK(glDepthMask(GL_FALSE));
-  m.drawListTransparent->Draw(*m.rightCamera);
-  VRB_GL_CHECK(glDepthMask(GL_TRUE));
-#endif // !defined(VRBROWSER_NO_VR_API)
-  m.device->EndFrame();
-
-  // Update the 3d audio engine with the most recent head rotation.
-  if (m.handleAudioPoseMethod) {
-    const vrb::Matrix &head = m.device->GetHeadTransform();
-    const vrb::Vector p = head.GetTranslation();
-    const vrb::Quaternion q(head);
-    m.env->CallVoidMethod(m.activity, m.handleAudioPoseMethod, q.x(), q.y(), q.z(), q.w(), p.x(), p.y(), p.z());
+  m.externalVR->PullBrowserState();
+  if (m.externalVR->IsPresenting()) {
+    DrawImmersive();
+  } else {
+    DrawWorld();
+    m.externalVR->PushSystemState();
   }
+  // Update the 3d audio engine with the most recent head rotation.
+  const vrb::Matrix &head = m.device->GetHeadTransform();
+  const vrb::Vector p = head.GetTranslation();
+  const vrb::Quaternion q(head);
+  VRBrowser::HandleAudioPose(q.x(), q.y(), q.z(), q.w(), p.x(), p.y(), p.z());
 
 }
 
 void
 BrowserWorld::SetSurfaceTexture(const std::string& aName, jobject& aSurface) {
   VRB_LOG("SetSurfaceTexture: %s", aName.c_str());
-  if (m.env && m.activity && m.dispatchCreateWidgetMethod) {
-    WidgetPtr widget = m.FindWidget([=](const WidgetPtr& aWidget) -> bool {
-      return aName == aWidget->GetSurfaceTextureName();
-    });
-    if (widget) {
-      int32_t width = 0, height = 0;
-      widget->GetSurfaceTextureSize(width, height);
-      m.env->CallVoidMethod(m.activity, m.dispatchCreateWidgetMethod, widget->GetHandle(), aSurface, width, height);
-    }
+  WidgetPtr widget = m.FindWidget([=](const WidgetPtr& aWidget) -> bool {
+    return aName == aWidget->GetSurfaceTextureName();
+  });
+  if (widget) {
+    int32_t width = 0, height = 0;
+    widget->GetSurfaceTextureSize(width, height);
+    VRBrowser::DispatchCreateWidget(widget->GetHandle(), aSurface, width, height);
   }
 }
 
@@ -880,9 +816,68 @@ BrowserWorld::BrowserWorld(State& aState) : m(aState) {
 }
 
 BrowserWorld::~BrowserWorld() {
- if (sWorld == this) {
-  sWorld = nullptr;
- }
+  if (sWorld == this) {
+    sWorld = nullptr;
+  }
+}
+
+void
+BrowserWorld::DrawWorld() {
+  m.device->SetRenderMode(device::RenderMode::StandAlone);
+  vrb::Vector headPosition = m.device->GetHeadTransform().GetTranslation();
+  m.skybox->SetTransform(vrb::Matrix::Translation(headPosition));
+  m.rootTransparent->SortNodes([=](const NodePtr& a, const NodePtr& b) {
+    return DistanceToNode(a, headPosition) < DistanceToNode(b, headPosition);
+  });
+  m.drawListOpaque->Reset();
+  m.drawListTransparent->Reset();
+  m.rootOpaqueParent->Cull(*m.cullVisitor, *m.drawListOpaque);
+  m.rootTransparent->Cull(*m.cullVisitor, *m.drawListTransparent);
+  m.device->StartFrame();
+  m.device->BindEye(device::Eye::Left);
+  m.drawListOpaque->Draw(*m.leftCamera);
+  VRB_GL_CHECK(glDepthMask(GL_FALSE));
+  m.drawListTransparent->Draw(*m.leftCamera);
+  VRB_GL_CHECK(glDepthMask(GL_TRUE));
+  // When running the noapi flavor, we only want to render one eye.
+#if !defined(VRBROWSER_NO_VR_API)
+  m.device->BindEye(device::Eye::Right);
+  m.drawListOpaque->Draw(*m.rightCamera);
+  VRB_GL_CHECK(glDepthMask(GL_FALSE));
+  m.drawListTransparent->Draw(*m.rightCamera);
+  VRB_GL_CHECK(glDepthMask(GL_TRUE));
+#endif // !defined(VRBROWSER_NO_VR_API)
+  m.device->EndFrame();
+}
+
+void
+BrowserWorld::DrawImmersive() {
+  if (m.externalVR->IsFirstPresentingFrame()) {
+    VRBrowser::PauseCompositor();
+  }
+  m.device->SetRenderMode(device::RenderMode::Immersive);
+  /*
+  float r = (float)rand() / (float)RAND_MAX;
+  float g = (float)rand() / (float)RAND_MAX;
+  float b = (float)rand() / (float)RAND_MAX;
+
+  m.device->SetClearColor(vrb::Color(r, g, b));
+   */
+  m.device->StartFrame();
+  VRB_GL_CHECK(glDepthMask(GL_FALSE));
+  m.externalVR->RequestFrame(m.device->GetHeadTransform());
+  int32_t surfaceHandle = 0;
+  device::EyeRect leftEye, rightEye;
+  m.externalVR->GetFrameResult(surfaceHandle, leftEye, rightEye);
+  m.blitter->Update(surfaceHandle, leftEye, rightEye);
+  m.device->BindEye(device::Eye::Left);
+  m.blitter->Draw(device::Eye::Left);
+#if !defined(VRBROWSER_NO_VR_API)
+  m.device->BindEye(device::Eye::Right);
+  m.blitter->Draw(device::Eye::Right);
+#endif // !defined(VRBROWSER_NO_VR_API)
+  m.device->EndFrame();
+  m.blitter->Finish();
 }
 
 vrb::TransformPtr
@@ -953,7 +948,7 @@ BrowserWorld::CreateFloor() {
   vrb::Matrix transform = vrb::Matrix::Identity();
   transform.ScaleInPlace(Vector(40.0, 40.0, 40.0));
   transform.TranslateInPlace(Vector(0.0, -2.5f, 1.0));
-  transform.PostMultiplyInPlace(vrb::Matrix::Rotation(Vector(1.0, 0.0, 0.0), M_PI * 0.5f));
+  transform.PostMultiplyInPlace(vrb::Matrix::Rotation(Vector(1.0, 0.0, 0.0), float(M_PI * 0.5)));
   model->SetTransform(transform);
 }
 

@@ -44,6 +44,8 @@ protected:
   struct State;
   BrowserWorld(State& aState);
   ~BrowserWorld();
+  void DrawWorld();
+  void DrawImmersive();
   vrb::TransformPtr CreateSkyBox(const std::string& basePath);
   void CreateFloor();
   void CreateControllerPointer();

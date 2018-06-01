@@ -21,7 +21,12 @@ add_library( # Sets the name of the library.
              # Provides a relative path to your source file(s).
              src/main/cpp/BrowserWorld.cpp
              src/main/cpp/ElbowModel.cpp
+             src/main/cpp/ExternalBlitter.cpp
+             src/main/cpp/ExternalVR.cpp
+             src/main/cpp/GeckoSurfaceTexture.cpp
              src/main/cpp/GestureDelegate.cpp
+             src/main/cpp/JNIUtil.cpp
+             src/main/cpp/VRBrowser.cpp
              src/main/cpp/Widget.cpp
              src/main/cpp/WidgetPlacement.cpp
              src/main/cpp/vrb/src/CameraEye.cpp

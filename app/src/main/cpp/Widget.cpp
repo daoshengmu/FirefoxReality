@@ -52,7 +52,8 @@ struct Widget::State {
     float result = max * 0.1f;
     return result;
   }
-  void Initialize(const int aHandle) {
+
+  void Initialize(const uint32_t aHandle) {
     handle = aHandle;
     name = "crow::Widget-" + std::to_string(handle);
     surface = vrb::TextureSurface::Create(context, name);

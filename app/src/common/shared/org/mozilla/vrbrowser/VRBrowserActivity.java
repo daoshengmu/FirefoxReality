@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 
+import org.mozilla.gecko.GeckoVRManager;
 import org.mozilla.vrbrowser.audio.AudioEngine;
 import org.mozilla.vrbrowser.audio.VRAudioTheme;
 import org.mozilla.vrbrowser.ui.BrowserWidget;
@@ -62,11 +63,12 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
     BrowserWidget mBrowserWidget;
     KeyboardWidget mKeyboard;
     PermissionDelegate mPermissionDelegate;
+    private Thread mUiThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.e(LOGTAG, "VRBrowserActivity onCreate");
-
+        mUiThread = Thread.currentThread();
         SessionStore.get().setContext(this);
 
         mLastGesture = NoGesture;
@@ -275,6 +277,57 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         // https://developers.google.com/vr/reference/android/com/google/vr/sdk/audio/GvrAudioEngine.html#resume()
         // The update method must be called from the main thread at a regular rate.
         runOnUiThread(mAudioUpdateRunnable);
+    }
+
+    @Keep
+    void registerExternalContext(long aContext) {
+        GeckoVRManager.setExternalContext(aContext);
+    }
+
+    class PauseCompositorRunnable implements Runnable {
+        public boolean done;
+        @Override
+        public void run() {
+            synchronized (VRBrowserActivity.this) {
+                if (mBrowserWidget != null) {
+                    mBrowserWidget.pauseCompositor();
+                    Log.e(LOGTAG, "Compositor Paused");
+                }
+                done = true;
+                VRBrowserActivity.this.notify();
+            }
+        }
+    }
+
+    @Keep
+    void pauseGeckoViewCompositor() {
+        if (Thread.currentThread() == mUiThread) {
+            return;
+        }
+        PauseCompositorRunnable runnable = new PauseCompositorRunnable();
+
+        synchronized (this) {
+            runOnUiThread(runnable);
+            while (!runnable.done) {
+                try {
+                    this.wait();
+                } catch (InterruptedException e) {
+                    Log.e(LOGTAG, "Waiting for compositor pause interrupted");
+                }
+            }
+        }
+    }
+
+    @Keep
+    void resumeGeckoViewCompositor() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mBrowserWidget != null) {
+                    mBrowserWidget.resumeCompositor();
+                }
+            }
+        });
     }
 
     void createOffscreenDisplay() {
