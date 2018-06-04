@@ -25,10 +25,12 @@
 #include "vrb/SurfaceTextureFactory.h"
 #include "vrb/TextureCache.h"
 #include "vrb/TextureSurface.h"
+#include "vrb/TextureCubeMap.h"
 #include "vrb/Toggle.h"
 #include "vrb/Transform.h"
 #include "vrb/VertexArray.h"
 #include "vrb/Vector.h"
+#include <array>
 #include <functional>
 
 using namespace vrb;
@@ -54,6 +56,7 @@ static const char* kHandleAudioPoseSignature = "(FFFFFFF)V";
 static const char* kHandleGestureName = "handleGesture";
 static const char* kHandleGestureSignature = "(I)V";
 static const char* kTileTexture = "tile.png";
+
 class SurfaceObserver;
 typedef std::shared_ptr<SurfaceObserver> SurfaceObserverPtr;
 
@@ -347,6 +350,7 @@ struct BrowserWorld::State {
   ContextWeak contextWeak;
   NodeFactoryObjPtr factory;
   ParserObjPtr parser;
+  GroupPtr rootOpaqueParent;
   GroupPtr rootOpaque;
   GroupPtr rootTransparent;
   LightPtr light;
@@ -367,9 +371,14 @@ struct BrowserWorld::State {
   jmethodID handleGestureMethod;
   GestureDelegateConstPtr gestures;
   bool windowsInitialized;
+  std::vector<vrb::TransformPtr> skyboxes;
+  int skyboxIndex = 0;
+  bool floorVisible = false;
+  GeometryPtr floorGeometry;
+
 
   State() : paused(true), glInitialized(false), env(nullptr), nearClip(0.1f),
-            farClip(100.0f), activity(nullptr),
+            farClip(10000.0f), activity(nullptr),
             dispatchCreateWidgetMethod(nullptr), handleMotionEventMethod(nullptr),
             handleScrollEventMethod(nullptr), handleAudioPoseMethod(nullptr),
             handleGestureMethod(nullptr),
@@ -382,6 +391,8 @@ struct BrowserWorld::State {
     rootOpaque = Group::Create(contextWeak);
     rootTransparent = Group::Create(contextWeak);
     light = Light::Create(contextWeak);
+    rootOpaqueParent = Group::Create(contextWeak);
+    rootOpaqueParent->AddNode(rootOpaque);
     rootOpaque->AddLight(light);
     rootTransparent->AddLight(light);
     cullVisitor = CullVisitor::Create(contextWeak);
@@ -472,8 +483,31 @@ BrowserWorld::State::UpdateControllers() {
                           false, 0.0f, 0.0f);
       controller.widget = 0;
     }
+
+    const bool triggerPressed = controller.buttonState & ControllerDelegate::BUTTON_TRIGGER;
+    const bool touchpadPressed = controller.buttonState & ControllerDelegate::BUTTON_TOUCHPAD;
+    const bool triggerWasPressed = controller.lastButtonState & ControllerDelegate::BUTTON_TRIGGER;
+    const bool touchpadWasPressed = controller.lastButtonState & ControllerDelegate::BUTTON_TOUCHPAD;
+
     controller.lastButtonState = controller.buttonState;
+
+    if (!controller.widget && !hitWidget && triggerPressed && !triggerWasPressed) {
+      skyboxes[skyboxIndex]->RemoveFromParents();
+      skyboxIndex = (skyboxIndex + 1) % skyboxes.size();
+      rootOpaqueParent->AddNode(skyboxes[skyboxIndex]);
+    }
+
+    if (!controller.widget && !hitWidget && touchpadPressed && !touchpadWasPressed) {
+      floorVisible = !floorVisible;
+      if (floorVisible) {
+        rootOpaque->AddNode(floorGeometry);
+      } else {
+        floorGeometry->RemoveFromParents();
+      }
+    }
   }
+
+
   for (Widget* widget: active) {
     widget->TogglePointer(true);
   }
@@ -632,6 +666,12 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     }
     m.rootOpaque->AddNode(m.controllers->root);
     CreateControllerPointer();
+    std::vector<std::string> values = { "meadow", "plants", "maskonaive", "space"};
+    for (auto& value: values) {
+      vrb::TransformPtr transform = CreateSkyBox(value);
+      m.skyboxes.push_back(transform);
+    }
+    m.rootOpaqueParent->AddNode(m.skyboxes[m.skyboxIndex]);
     CreateFloor();
     m.controllers->modelsLoaded = true;
   }
@@ -707,13 +747,16 @@ BrowserWorld::Draw() {
   m.UpdateControllers();
   m.drawListOpaque->Reset();
   m.drawListTransparent->Reset();
-  vrb::NodePtr node;
-  m.rootOpaque->Cull(*m.cullVisitor, *m.drawListOpaque);
+
+  m.rootOpaqueParent->Cull(*m.cullVisitor, *m.drawListOpaque);
 
   m.device->StartFrame();
 
 
   vrb::Vector headPosition = m.device->GetHeadTransform().GetTranslation();
+  for (auto& node: m.skyboxes) {
+    node->SetTransform(vrb::Matrix::Translation(headPosition));
+  }
   m.rootTransparent->SortNodes([=](const NodePtr& a, const NodePtr& b) {
     return DistanceToNode(a, headPosition) < DistanceToNode(b, headPosition);
   });
@@ -865,6 +908,67 @@ BrowserWorld::~BrowserWorld() {
  }
 }
 
+vrb::TransformPtr
+BrowserWorld::CreateSkyBox(const std::string& basePath) {
+  std::array<GLfloat, 24> cubeVertices {
+    -1.0f,  1.0f,  1.0f, // 0
+    -1.0f, -1.0f,  1.0f, // 1
+     1.0f, -1.0f,  1.0f, // 2
+     1.0f,  1.0f,  1.0f, // 3
+    -1.0f,  1.0f, -1.0f, // 4
+    -1.0f, -1.0f, -1.0f, // 5
+     1.0f, -1.0f, -1.0f, // 6
+     1.0f,  1.0f, -1.0f, // 7
+  };
+
+  std::array<GLushort, 24> cubeIndices {
+      0, 1, 2, 3,
+      3, 2, 6, 7,
+      7, 6, 5, 4,
+      4, 5, 1, 0,
+      0, 3, 7, 4,
+      1, 5, 6, 2
+  };
+
+  VertexArrayPtr array = VertexArray::Create(m.contextWeak);
+  const float kLength = 200.0f;
+  for (int i = 0; i < cubeVertices.size(); i += 3) {
+    array->AppendVertex(Vector(-kLength * cubeVertices[i], -kLength * cubeVertices[i + 1], -kLength * cubeVertices[i + 2]));
+    array->AppendUV(Vector(-kLength * cubeVertices[i], -kLength * cubeVertices[i + 1], -kLength * cubeVertices[i + 2]));
+  }
+
+  vrb::GeometryPtr geometry = vrb::Geometry::Create(m.contextWeak);
+  geometry->SetVertexArray(array);
+
+
+  for (int i = 0; i < cubeIndices.size(); i += 4) {
+    std::vector<int> indices = {cubeIndices[i] + 1, cubeIndices[i + 1] + 1, cubeIndices[i + 2] + 1, cubeIndices[i + 3] + 1};
+    geometry->AddFace(indices, indices, {});
+  }
+
+  RenderStatePtr state = RenderState::Create(m.contextWeak);
+  TextureCubeMapPtr cubemap = vrb::TextureCubeMap::Create(m.contextWeak);
+  cubemap->SetTextureParameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  cubemap->SetTextureParameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  cubemap->SetTextureParameter(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  cubemap->SetTextureParameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  cubemap->SetTextureParameter(GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+  state->SetTexture(cubemap);
+
+#define CUBEMAP(name) "cubemap/" + basePath + "/" + #name + ".jpg"
+  // vrb::TextureCubeMap::Load(m.contextWeak, cubemap, CUBEMAP(right), CUBEMAP(left), CUBEMAP(top), CUBEMAP(bottom), CUBEMAP(front), CUBEMAP(back));
+  vrb::TextureCubeMap::Load(m.contextWeak, cubemap, CUBEMAP(posx), CUBEMAP(negx), CUBEMAP(posy), CUBEMAP(negy), CUBEMAP(posz), CUBEMAP(negz));
+#undef CUBEMAP
+
+
+  state->SetMaterial(Color(1.0f, 1.0f, 1.0f), Color(1.0f, 1.0f, 1.0f), Color(0.0f, 0.0f, 0.0f), 0.0f);
+  geometry->SetRenderState(state);
+  vrb::TransformPtr transform = vrb::Transform::Create(m.contextWeak);
+  transform->AddNode(geometry);
+  transform->SetTransform(Matrix::Position(vrb::Vector(0.0f, 0.0f, 0.0f)));
+  return transform;
+}
+
 void
 BrowserWorld::CreateFloor() {
   VertexArrayPtr array = VertexArray::Create(m.contextWeak);
@@ -909,7 +1013,10 @@ BrowserWorld::CreateFloor() {
   normalIndex.push_back(1);
   geometry->AddFace(index, index, normalIndex);
 
-  m.rootOpaque->AddNode(geometry);
+  m.floorGeometry = geometry;
+  if (m.floorVisible) {
+    m.rootOpaque->AddNode(geometry);
+  }
 }
 
 void
