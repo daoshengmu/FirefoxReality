@@ -24,6 +24,7 @@ import org.mozilla.vrbrowser.audio.VRAudioTheme;
 import org.mozilla.vrbrowser.ui.BrowserHeaderWidget;
 import org.mozilla.vrbrowser.ui.BrowserWidget;
 import org.mozilla.vrbrowser.ui.KeyboardWidget;
+import org.mozilla.vrbrowser.ui.NavigationBarWidget;
 import org.mozilla.vrbrowser.ui.OffscreenDisplay;
 
 import java.util.Arrays;
@@ -121,14 +122,14 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         mPermissionDelegate.setParentWidgetHandle(mBrowserWidget.getHandle());
 
         // Create Browser navigation widget
-        BrowserHeaderWidget header = new BrowserHeaderWidget(this);
-        header.getPlacement().parentHandle = mBrowserWidget.getHandle();
+        NavigationBarWidget navigation = new NavigationBarWidget(this);
+        navigation.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
         // Create keyboard widget
         mKeyboard = new KeyboardWidget(this);
         mKeyboard.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
-        addWidgets(Arrays.<Widget>asList(mBrowserWidget, header, mKeyboard));
+        addWidgets(Arrays.<Widget>asList(mBrowserWidget, navigation, mKeyboard));
     }
 
     @Override

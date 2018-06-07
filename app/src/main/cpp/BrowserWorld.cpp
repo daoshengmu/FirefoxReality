@@ -39,7 +39,7 @@ static const int GestureSwipeLeft = 0;
 static const int GestureSwipeRight = 1;
 
 static const float kScrollFactor = 20.0f; // Just picked what fell right.
-static const float kWorldDPIRatio = 18.0f/720.0f;
+static const float kWorldDPIRatio = 2.0f/720.0f;
 
 static crow::BrowserWorld* sWorld;
 
@@ -701,14 +701,24 @@ BrowserWorld::Draw() {
       return;
     }
   }
+
   m.device->ProcessEvents();
   m.context->Update();
   m.UpdateControllers();
   m.drawListOpaque->Reset();
   m.drawListTransparent->Reset();
+  vrb::NodePtr node;
   m.rootOpaque->Cull(*m.cullVisitor, *m.drawListOpaque);
-  m.rootTransparent->Cull(*m.cullVisitor, *m.drawListTransparent);
+
   m.device->StartFrame();
+
+
+  vrb::Vector headPosition = m.device->GetHeadTransform().GetTranslation();
+  m.rootTransparent->SortNodes([=](const NodePtr& a, const NodePtr& b) {
+    return DistanceToNode(a, headPosition) < DistanceToNode(b, headPosition);
+  });
+  m.rootTransparent->Cull(*m.cullVisitor, *m.drawListTransparent);
+
   m.device->BindEye(DeviceDelegate::CameraEnum::Left);
   m.drawListOpaque->Draw(*m.leftCamera);
   VRB_GL_CHECK(glDepthMask(GL_FALSE));
@@ -775,10 +785,10 @@ BrowserWorld::AddWidget(int32_t aHandle, const WidgetPlacement& aPlacement) {
   m.widgets.push_back(widget);
   UpdateWidget(widget->GetHandle(), aPlacement);
 
-  if (!aPlacement.showPointer) {
+  // if (!aPlacement.showPointer) {
     vrb::NodePtr emptyNode = vrb::Group::Create(m.contextWeak);
     widget->SetPointerGeometry(emptyNode);
-  }
+  // }
 }
 
 void
@@ -963,6 +973,22 @@ BrowserWorld::CreateControllerPointer() {
       controller.transform->AddNode(m.controllers->pointerModel);
     }
   }
+}
+
+float
+BrowserWorld::DistanceToNode(const vrb::NodePtr& aTargetNode, const vrb::Vector& aPosition) const {
+  float result = -1;
+  Node::Traverse(aTargetNode, [&](const NodePtr &aNode, const GroupPtr &aTraversingFrom) {
+    vrb::TransformPtr transform = std::dynamic_pointer_cast<vrb::Transform>(aNode);
+    if (transform) {
+      vrb::Vector targetPos = transform->GetTransform().GetTranslation();
+      result = (targetPos - aPosition).Magnitude();
+      return true;
+    }
+    return false;
+  });
+
+  return result;
 }
 
 } // namespace crow

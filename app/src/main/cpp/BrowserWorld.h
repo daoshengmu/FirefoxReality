@@ -46,6 +46,7 @@ protected:
   ~BrowserWorld();
   void CreateFloor();
   void CreateControllerPointer();
+  float DistanceToNode(const vrb::NodePtr& aNode, const vrb::Vector& aPosition) const;
 private:
   State& m;
   BrowserWorld() = delete;
