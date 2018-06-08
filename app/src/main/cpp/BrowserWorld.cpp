@@ -1005,16 +1005,16 @@ BrowserWorld::CreateSkyBox(const std::string& basePath) {
 void
 BrowserWorld::CreatePlatform() {
   m.factory->SetModelRoot(m.platform);
-  m.parser->LoadModel("FirefoxPlatform.obj");
+  m.parser->LoadModel("FirefoxPlatform2_low.obj");
   m.rootOpaque->AddNode(m.platform);
   vrb::Matrix transform = vrb::Matrix::Identity();
-  transform.ScaleInPlace(Vector(30.0, 30.0, 30.0));
-  transform.TranslateInPlace(Vector(0.0, -1.5f, 2.25));
-  transform.PreMultiplyInPlace(vrb::Matrix::Rotation(Vector(0.0, 1.0, 0.0), M_PI));
+  transform.ScaleInPlace(Vector(40.0, 40.0, 40.0));
+  transform.TranslateInPlace(Vector(0.0, -2.5f, 1.0));
+  transform.PostMultiplyInPlace(vrb::Matrix::Rotation(Vector(1.0, 0.0, 0.0), M_PI/2));
   m.platform->SetTransform(transform);
-  auto light = Light::Create(m.contextWeak);
-  light->SetDirection(Vector(0.0, 0.0f, 0.5f));
-  m.platform->AddLight(light);
+  //auto light = Light::Create(m.contextWeak);
+  //light->SetDirection(Vector(0.0, 0.0f, 0.5f));
+  //m.platform->AddLight(light);
 }
 
 void
