@@ -1,0 +1,16 @@
+# 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
+# File Created: 08.06.2018 15:52:17
+
+newmtl defaultMat
+	Ns 30.000002
+	Ni 1.500000
+	d 1.000000
+	Tr 0.000000
+	Tf 1.000000 1.000000 1.000000 
+	illum 2
+	Ka 0.000000 0.000000 0.000000
+	Kd 0.600000 0.600000 0.600000
+	Ks 0.000000 0.000000 0.000000
+	Ke 0.000000 0.000000 0.000000
+	map_Ka FirefoxPlatform_defaultMat_BaseColor.png
+	map_Kd FirefoxPlatform_defaultMat_BaseColor.png

@@ -46,6 +46,7 @@ protected:
   ~BrowserWorld();
   vrb::TransformPtr CreateSkyBox(const std::string& basePath);
   void CreateFloor();
+  void CreatePlatform();
   void CreateControllerPointer();
   float DistanceToNode(const vrb::NodePtr& aNode, const vrb::Vector& aPosition) const;
 private:

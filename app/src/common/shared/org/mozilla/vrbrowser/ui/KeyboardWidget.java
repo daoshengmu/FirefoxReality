@@ -97,7 +97,7 @@ public class KeyboardWidget extends UIWidget implements CustomKeyboardView.OnKey
         aPlacement.parentAnchorY = 0.5f;
         aPlacement.anchorX = 0.5f;
         aPlacement.anchorY = 0.5f;
-        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.keyboard_distance_from_browser);
+        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.keyboard_distance_from_browser) * WidgetPlacement.SIZE_SCALE;
         aPlacement.rotationAxisX = 1.0f;
         aPlacement.rotation = (float)Math.toRadians(WidgetPlacement.floatDimension(context, R.dimen.keyboard_world_rotation));
         aPlacement.worldWidth = WidgetPlacement.floatDimension(context, R.dimen.keyboard_world_width) * WidgetPlacement.SIZE_SCALE;

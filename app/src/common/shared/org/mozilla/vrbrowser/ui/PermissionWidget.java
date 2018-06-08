@@ -88,7 +88,7 @@ public class PermissionWidget extends UIWidget {
         aPlacement.width = WidgetPlacement.dpDimension(context, R.dimen.permission_width);
         aPlacement.height = WidgetPlacement.dpDimension(context, R.dimen.permission_height);
         aPlacement.worldWidth = WidgetPlacement.floatDimension(context, R.dimen.permission_world_width);
-        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.permission_distance_from_browser);
+        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.permission_distance_from_browser) * WidgetPlacement.SIZE_SCALE;
         aPlacement.parentAnchorX = 0.5f;
         aPlacement.parentAnchorY = 0.5f;
         aPlacement.anchorX = 0.5f;

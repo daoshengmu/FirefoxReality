@@ -32,6 +32,7 @@
 #include "vrb/Vector.h"
 #include <array>
 #include <functional>
+#include <vrb/include/vrb/TextureGL.h>
 
 using namespace vrb;
 
@@ -376,6 +377,7 @@ struct BrowserWorld::State {
   int skyboxIndex = 0;
   bool floorVisible = false;
   GeometryPtr floorGeometry;
+  TransformPtr platform;
 
 
   State() : paused(true), glInitialized(false), env(nullptr), nearClip(0.1f),
@@ -402,6 +404,7 @@ struct BrowserWorld::State {
     controllers = ControllerContainer::Create();
     controllers->context = contextWeak;
     controllers->root = Toggle::Create(contextWeak);
+    platform = Transform::Create(contextWeak);
   }
 
   void UpdateControllers();
@@ -683,13 +686,14 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     }
     m.rootOpaque->AddNode(m.controllers->root);
     CreateControllerPointer();
-    std::vector<std::string> values = { "space" }; // { "meadow", "plants", "maskonaive", "space"};
+    std::vector<std::string> values = { "space", "dispair" }; // { "meadow", "plants", "maskonaive", "space"};
     for (auto& value: values) {
       vrb::TransformPtr transform = CreateSkyBox(value);
       m.skyboxes.push_back(transform);
     }
     m.rootOpaqueParent->AddNode(m.skyboxes[m.skyboxIndex]);
-    CreateFloor();
+    // CreateFloor();
+    CreatePlatform();
     m.controllers->modelsLoaded = true;
   }
 }
@@ -995,6 +999,22 @@ BrowserWorld::CreateSkyBox(const std::string& basePath) {
   transform->AddNode(geometry);
   transform->SetTransform(Matrix::Position(vrb::Vector(0.0f, 0.0f, 0.0f)));
   return transform;
+}
+
+
+void
+BrowserWorld::CreatePlatform() {
+  m.factory->SetModelRoot(m.platform);
+  m.parser->LoadModel("FirefoxPlatform.obj");
+  m.rootOpaque->AddNode(m.platform);
+  vrb::Matrix transform = vrb::Matrix::Identity();
+  transform.ScaleInPlace(Vector(30.0, 30.0, 30.0));
+  transform.TranslateInPlace(Vector(0.0, -1.5f, 2.25));
+  transform.PreMultiplyInPlace(vrb::Matrix::Rotation(Vector(0.0, 1.0, 0.0), M_PI));
+  m.platform->SetTransform(transform);
+  auto light = Light::Create(m.contextWeak);
+  light->SetDirection(Vector(0.0, 0.0f, 0.5f));
+  m.platform->AddLight(light);
 }
 
 void
