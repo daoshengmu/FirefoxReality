@@ -369,6 +369,7 @@ struct BrowserWorld::State {
   jmethodID handleScrollEventMethod;
   jmethodID handleAudioPoseMethod;
   jmethodID handleGestureMethod;
+  jmethodID handleScaleMethod;
   GestureDelegateConstPtr gestures;
   bool windowsInitialized;
   std::vector<vrb::TransformPtr> skyboxes;
@@ -498,12 +499,26 @@ BrowserWorld::State::UpdateControllers() {
     }
 
     if (!controller.widget && !hitWidget && touchpadPressed && !touchpadWasPressed) {
-      floorVisible = !floorVisible;
+      VRB_LOG("mangu %f %f", controller.touchX, controller.touchY)
+      if (controller.touchY > 4.4f) {
+        env->CallVoidMethod(activity, handleScaleMethod, -0.1, 0.0);
+      }
+      else if (controller.touchY < 1.5f) {
+        env->CallVoidMethod(activity, handleScaleMethod, 0.1, 0.0);
+      }
+      if (controller.touchX > 4.4f) {
+        env->CallVoidMethod(activity, handleScaleMethod, 0.0, 0.1);
+      }
+      else if (controller.touchX < 0.4f) {
+        env->CallVoidMethod(activity, handleScaleMethod, 0.0, -0.1);
+      }
+
+      /*floorVisible = !floorVisible;
       if (floorVisible) {
         rootOpaque->AddNode(floorGeometry);
       } else {
         floorGeometry->RemoveFromParents();
-      }
+      }*/
     }
   }
 
@@ -654,6 +669,8 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     VRB_LOG("Failed to find Java method: %s %s", kHandleGestureName, kHandleGestureSignature);
   }
 
+  m.handleScaleMethod = m.env->GetMethodID(clazz, "handleScale", "(FF)V");
+
   if (!m.controllers->modelsLoaded) {
     const int32_t modelCount = m.device->GetControllerModelCount();
     for (int32_t index = 0; index < modelCount; index++) {
@@ -666,7 +683,7 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     }
     m.rootOpaque->AddNode(m.controllers->root);
     CreateControllerPointer();
-    std::vector<std::string> values = { "meadow", "plants", "maskonaive", "space"};
+    std::vector<std::string> values = { "space" }; // { "meadow", "plants", "maskonaive", "space"};
     for (auto& value: values) {
       vrb::TransformPtr transform = CreateSkyBox(value);
       m.skyboxes.push_back(transform);
@@ -856,6 +873,17 @@ BrowserWorld::UpdateWidget(int32_t aHandle, const WidgetPlacement& aPlacement) {
 
   float worldWidth, worldHeight;
   widget->GetWorldSize(worldWidth, worldHeight);
+
+  float newWorldWidth = aPlacement.worldWidth;
+  if (newWorldWidth <= 0.0f) {
+    newWorldWidth = aPlacement.width * kWorldDPIRatio;
+  }
+
+  if (newWorldWidth != worldWidth) {
+    VRB_LOG("baina nor da ordu honetan? %f %f", newWorldWidth, worldWidth);
+    widget->SetWorldWidth(newWorldWidth);
+    widget->GetWorldSize(worldWidth, worldHeight);
+  }
 
   vrb::Matrix transform = vrb::Matrix::Identity();
   if (aPlacement.rotationAxis.Magnitude() > std::numeric_limits<float>::epsilon()) {

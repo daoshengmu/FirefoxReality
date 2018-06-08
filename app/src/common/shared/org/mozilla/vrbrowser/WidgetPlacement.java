@@ -10,6 +10,9 @@ import android.util.TypedValue;
 
 public class WidgetPlacement {
     static final float WORLD_DPI_RATIO = 2.0f/720.0f;
+    public static float SIZE_SCALE = 1.0f;
+    public static float DEPTH_SCALE = 1.0f;
+
 
     public WidgetPlacement(Context aContext) {
         density = aContext.getResources().getDisplayMetrics().density;

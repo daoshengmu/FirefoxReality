@@ -107,6 +107,10 @@ public class NavigationURLBar extends FrameLayout {
         }
     }
 
+    public void setURLText(String aText) {
+        mURL.setText(aText);
+    }
+
     public void setIsInsecure(boolean aIsInsecure) {
         if (mIsInsecure != aIsInsecure) {
             mIsInsecure = aIsInsecure;

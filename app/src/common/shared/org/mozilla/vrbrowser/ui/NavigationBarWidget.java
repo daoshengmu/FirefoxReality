@@ -104,9 +104,14 @@ public class NavigationBarWidget extends UIWidget implements GeckoSession.Naviga
         SessionStore.get().addProgressListener(this);
     }
 
+    public void setURLText(String aText) {
+        mURLBar.setURLText(aText);
+    }
+
     @Override
     void initializeWidgetPlacement(WidgetPlacement aPlacement) {
         aPlacement.width = 720;
+        aPlacement.worldWidth = 2.0f * WidgetPlacement.SIZE_SCALE;
         aPlacement.height = 45;
         aPlacement.anchorX = 0.5f;
         aPlacement.anchorY = 1.0f;

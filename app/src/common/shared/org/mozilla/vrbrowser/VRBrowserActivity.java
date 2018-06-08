@@ -27,8 +27,11 @@ import org.mozilla.vrbrowser.ui.KeyboardWidget;
 import org.mozilla.vrbrowser.ui.NavigationBarWidget;
 import org.mozilla.vrbrowser.ui.OffscreenDisplay;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 public class VRBrowserActivity extends PlatformActivity implements WidgetManagerDelegate {
     class SwipeRunnable implements Runnable {
@@ -62,6 +65,7 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
     Handler mHandler = new Handler();
     Runnable mAudioUpdateRunnable;
     BrowserWidget mBrowserWidget;
+    NavigationBarWidget mNavigationBar;
     KeyboardWidget mKeyboard;
     PermissionDelegate mPermissionDelegate;
     private boolean mWasBrowserPressed = false;
@@ -75,7 +79,7 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         mLastGesture = NoGesture;
         super.onCreate(savedInstanceState);
 
-        mWidgets = new HashMap<>();
+        mWidgets = new LinkedHashMap<>();
         mWidgetContainer = new FrameLayout(this);
         mWidgetContainer.getViewTreeObserver().addOnGlobalFocusChangeListener(new ViewTreeObserver.OnGlobalFocusChangeListener() {
             @Override
@@ -122,14 +126,14 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         mPermissionDelegate.setParentWidgetHandle(mBrowserWidget.getHandle());
 
         // Create Browser navigation widget
-        NavigationBarWidget navigation = new NavigationBarWidget(this);
-        navigation.getPlacement().parentHandle = mBrowserWidget.getHandle();
+        mNavigationBar = new NavigationBarWidget(this);
+        mNavigationBar.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
         // Create keyboard widget
         mKeyboard = new KeyboardWidget(this);
         mKeyboard.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
-        addWidgets(Arrays.<Widget>asList(mBrowserWidget, navigation, mKeyboard));
+        addWidgets(Arrays.<Widget>asList(mBrowserWidget, mNavigationBar, mKeyboard));
     }
 
     @Override
@@ -309,6 +313,25 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
     }
 
     @Keep
+    void handleScale(final float deltaSize, final float deltaDepth) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                WidgetPlacement.SIZE_SCALE += deltaSize;
+                WidgetPlacement.DEPTH_SCALE += deltaDepth;
+                Collection<Widget> widgets = mWidgets.values();
+                for (Widget widget: widgets) {
+                    widget.reloadPlacement();
+                }
+                updateWidgets(widgets);
+
+                String text = String.format("Width: %.2fm Distance: %.2fm", mBrowserWidget.getPlacement().worldWidth, 2.0 * WidgetPlacement.DEPTH_SCALE);
+                mNavigationBar.setURLText(text);
+            }
+        });
+    }
+
+    @Keep
     void handleAudioPose(float qx, float qy, float qz, float qw, float px, float py, float pz) {
         mAudioEngine.setPose(qx, qy, qz, qw, px, py, pz);
 
@@ -357,6 +380,17 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
             public void run() {
                 for (Widget widget: aWidgets) {
                     addWidgetNative(widget.getHandle(), widget.getPlacement());
+                }
+            }
+        });
+    }
+
+    public void updateWidgets(final Iterable<Widget> aWidgets) {
+        queueRunnable(new Runnable() {
+            @Override
+            public void run() {
+                for (Widget widget: aWidgets) {
+                    updateWidgetNative(widget.getHandle(), widget.getPlacement());
                 }
             }
         });

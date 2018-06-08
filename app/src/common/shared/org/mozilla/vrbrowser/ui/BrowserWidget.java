@@ -52,13 +52,13 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
 
     private void initializeWidgetPlacement(WidgetPlacement aPlacement) {
         Context context = getContext();
-        aPlacement.worldWidth =  WidgetPlacement.floatDimension(context, R.dimen.browser_world_width);
+        aPlacement.worldWidth =  WidgetPlacement.floatDimension(context, R.dimen.browser_world_width) * WidgetPlacement.SIZE_SCALE;
         aPlacement.width = WidgetPlacement.pixelDimension(context, R.dimen.browser_width_pixels);
         aPlacement.height = WidgetPlacement.pixelDimension(context, R.dimen.browser_height_pixels);
         aPlacement.density = 1.0f;
         aPlacement.translationX = 0.0f;
         aPlacement.translationY = WidgetPlacement.unitFromMeters(context, R.dimen.browser_world_y);
-        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.browser_world_z);
+        aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.browser_world_z) * WidgetPlacement.DEPTH_SCALE;
         aPlacement.anchorX = 0.5f;
         aPlacement.anchorY = 0.5f;
         aPlacement.opaque = true;
@@ -87,6 +87,11 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
     @Override
     public WidgetPlacement getPlacement() {
         return mWidgetPlacement;
+    }
+
+    @Override
+    public void reloadPlacement() {
+        initializeWidgetPlacement(mWidgetPlacement);
     }
 
 
