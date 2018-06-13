@@ -504,16 +504,16 @@ BrowserWorld::State::UpdateControllers() {
     if (!controller.widget && !hitWidget && touchpadPressed && !touchpadWasPressed) {
       VRB_LOG("mangu %f %f", controller.touchX, controller.touchY)
       if (controller.touchY > 4.4f) {
-        env->CallVoidMethod(activity, handleScaleMethod, -0.1, 0.0);
+        // env->CallVoidMethod(activity, handleScaleMethod, -0.1, 0.0);
       }
       else if (controller.touchY < 1.5f) {
-        env->CallVoidMethod(activity, handleScaleMethod, 0.1, 0.0);
+        // env->CallVoidMethod(activity, handleScaleMethod, 0.1, 0.0);
       }
       if (controller.touchX > 4.4f) {
-        env->CallVoidMethod(activity, handleScaleMethod, 0.0, 0.1);
+        // env->CallVoidMethod(activity, handleScaleMethod, 0.0, 0.1);
       }
       else if (controller.touchX < 0.4f) {
-        env->CallVoidMethod(activity, handleScaleMethod, 0.0, -0.1);
+        // env->CallVoidMethod(activity, handleScaleMethod, 0.0, -0.1);
       }
 
       /*floorVisible = !floorVisible;
@@ -963,7 +963,7 @@ BrowserWorld::CreateSkyBox(const std::string& basePath) {
   };
 
   VertexArrayPtr array = VertexArray::Create(m.contextWeak);
-  const float kLength = 200.0f;
+  const float kLength = 50.0f;
   for (int i = 0; i < cubeVertices.size(); i += 3) {
     array->AppendVertex(Vector(-kLength * cubeVertices[i], -kLength * cubeVertices[i + 1], -kLength * cubeVertices[i + 2]));
     array->AppendUV(Vector(-kLength * cubeVertices[i], -kLength * cubeVertices[i + 1], -kLength * cubeVertices[i + 2]));

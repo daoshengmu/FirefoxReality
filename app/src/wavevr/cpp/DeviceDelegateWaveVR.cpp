@@ -66,7 +66,7 @@ struct DeviceDelegateWaveVR::State {
   State()
       : isRunning(true)
       , near(0.1f)
-      , far(100.f)
+      , far(1000.f)
       , leftFBOIndex(0)
       , rightFBOIndex(0)
       , leftTextureQueue(nullptr)

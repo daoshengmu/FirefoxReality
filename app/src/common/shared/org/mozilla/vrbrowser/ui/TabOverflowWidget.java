@@ -264,5 +264,10 @@ public class TabOverflowWidget extends UIWidget {
         public void onCurrentSessionChange(GeckoSession aSession, int aId) {
 
         }
+
+        @Override
+        public void onCrash(GeckoSession session) {
+
+        }
     }
 }

@@ -521,4 +521,9 @@ public class BrowserHeaderWidget extends UIWidget
         hideTabOverflow();
     }
 
+    @Override
+    public void onCrash(GeckoSession session) {
+
+    }
+
 }
