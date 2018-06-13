@@ -209,11 +209,11 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
             mKeyboard.setFocusedView(focusedView);
             // Fixme: Improve keyboard placement once GeckoView API lands a way to detect the TextView position on a webpage
             // For now we just use different placements for navigation bar &  GeckoView
-            float translationY = focusedView == mBrowserWidget ? -30.0f : -20.0f;
+            /*float translationY = focusedView == mBrowserWidget ? -30.0f : -20.0f;
             if (translationY != mKeyboard.getPlacement().translationY) {
                 mKeyboard.getPlacement().translationY = translationY;
                 placementUpdated = true;
-            }
+            }*/
 
         }
         boolean keyboardIsVisible = mKeyboard.getVisibility() == View.VISIBLE;

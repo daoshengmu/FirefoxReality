@@ -504,16 +504,16 @@ BrowserWorld::State::UpdateControllers() {
     if (!controller.widget && !hitWidget && touchpadPressed && !touchpadWasPressed) {
       VRB_LOG("mangu %f %f", controller.touchX, controller.touchY)
       if (controller.touchY > 4.4f) {
-        // env->CallVoidMethod(activity, handleScaleMethod, -0.1, 0.0);
+         env->CallVoidMethod(activity, handleScaleMethod, -0.1, 0.0);
       }
       else if (controller.touchY < 1.5f) {
-        // env->CallVoidMethod(activity, handleScaleMethod, 0.1, 0.0);
+         env->CallVoidMethod(activity, handleScaleMethod, 0.1, 0.0);
       }
       if (controller.touchX > 4.4f) {
-        // env->CallVoidMethod(activity, handleScaleMethod, 0.0, 0.1);
+         env->CallVoidMethod(activity, handleScaleMethod, 0.0, 0.1);
       }
       else if (controller.touchX < 0.4f) {
-        // env->CallVoidMethod(activity, handleScaleMethod, 0.0, -0.1);
+         env->CallVoidMethod(activity, handleScaleMethod, 0.0, -0.1);
       }
 
       /*floorVisible = !floorVisible;
