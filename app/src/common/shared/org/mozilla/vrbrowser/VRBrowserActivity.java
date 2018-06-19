@@ -18,6 +18,8 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 
+import org.mozilla.geckoview.GeckoSession;
+import org.mozilla.geckoview.GeckoSessionSettings;
 import org.mozilla.vrbrowser.audio.AudioEngine;
 import org.mozilla.vrbrowser.audio.VRAudioTheme;
 import org.mozilla.vrbrowser.ui.BrowserWidget;
@@ -25,12 +27,14 @@ import org.mozilla.vrbrowser.ui.KeyboardWidget;
 import org.mozilla.vrbrowser.ui.NavigationBarWidget;
 import org.mozilla.vrbrowser.ui.OffscreenDisplay;
 import org.mozilla.vrbrowser.ui.SettingsWidget;
+import org.mozilla.vrbrowser.ui.TopBarWidget;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 
-public class VRBrowserActivity extends PlatformActivity implements WidgetManagerDelegate {
+public class VRBrowserActivity extends PlatformActivity implements WidgetManagerDelegate, TopBarWidget.TopBarDelegate {
+
     class SwipeRunnable implements Runnable {
         boolean mCanceled = false;
         @Override
@@ -67,9 +71,14 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
     Runnable mAudioUpdateRunnable;
     BrowserWidget mBrowserWidget;
     KeyboardWidget mKeyboard;
+    NavigationBarWidget mNavigationBar;
+    TopBarWidget mTopBar;
     PermissionDelegate mPermissionDelegate;
     LinkedList<WidgetManagerDelegate.Listener> mWidgetEventListeners;
     LinkedList<Runnable> mBackHandlers;
+    SettingsWidget mSettingsWidget;
+    private boolean mWasBrowserPressed = false;
+    int mCurrentSessionId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,9 +94,7 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         mWidgetContainer.getViewTreeObserver().addOnGlobalFocusChangeListener(new ViewTreeObserver.OnGlobalFocusChangeListener() {
             @Override
             public void onGlobalFocusChanged(View oldFocus, View newFocus) {
-                if (mKeyboard != null) {
-                    mKeyboard.updateFocusedView(newFocus);
-                }
+                checkKeyboardFocus(newFocus);
             }
         });
 
@@ -130,15 +137,25 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         mBrowserWidget = new BrowserWidget(this, currentSession);
         mPermissionDelegate.setParentWidgetHandle(mBrowserWidget.getHandle());
 
+        // Settings Widget
+        mSettingsWidget = new SettingsWidget(VRBrowserActivity.this);
+        mSettingsWidget.hide();
+
         // Create Browser navigation widget
-        NavigationBarWidget navigationBar = new NavigationBarWidget(this);
-        navigationBar.setBrowserWidget(mBrowserWidget);
+        mNavigationBar = new NavigationBarWidget(this);
+        mNavigationBar.setBrowserWidget(mBrowserWidget);
+        mNavigationBar.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
         // Create keyboard widget
         mKeyboard = new KeyboardWidget(this);
-        mKeyboard.setBrowserWidget(mBrowserWidget);
+        mKeyboard.getPlacement().parentHandle = mBrowserWidget.getHandle();
 
-        addWidgets(Arrays.<Widget>asList(mBrowserWidget, navigationBar, mKeyboard));
+        // Create the top bar
+        mTopBar = new TopBarWidget(this);
+        mTopBar.getPlacement().parentHandle = mBrowserWidget.getHandle();
+        mTopBar.setDelegate(this);
+
+        addWidgets(Arrays.<Widget>asList(mBrowserWidget, mNavigationBar, mKeyboard, mSettingsWidget, mTopBar));
     }
 
     @Override
@@ -207,6 +224,24 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         }
     }
 
+    void checkKeyboardFocus(View focusedView) {
+        if (mKeyboard == null) {
+            return;
+        }
+
+        boolean showKeyboard = focusedView.onCheckIsTextEditor();
+        boolean placementUpdated = false;
+        if (showKeyboard) {
+            mKeyboard.updateFocusedView(focusedView);
+        }
+        boolean keyboardIsVisible = mKeyboard.getVisibility() == View.VISIBLE;
+        if (showKeyboard != keyboardIsVisible || placementUpdated) {
+            mKeyboard.getPlacement().visible = showKeyboard;
+            updateWidget(mKeyboard);
+        }
+    }
+
+
     @Keep
     void dispatchCreateWidget(final int aHandle, final SurfaceTexture aTexture, final int aWidth, final int aHeight) {
         runOnUiThread(new Runnable() {
@@ -232,6 +267,19 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
             public void run() {
                 Widget widget = mWidgets.get(aHandle);
                 MotionEventGenerator.dispatch(widget, aDevice, aPressed, aX, aY);
+
+                // Fixme: Remove this once the new Keyboard delegate lands in GeckoView
+                if (widget == mBrowserWidget) {
+                    if (mWasBrowserPressed != aPressed) {
+                        mHandler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                checkKeyboardFocus(mBrowserWidget);
+                            }
+                        }, 150);
+                    }
+                    mWasBrowserPressed = aPressed;
+                }
             }
         });
     }
@@ -287,7 +335,20 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                Log.i(LOGTAG, "Tray event not implemented: " + aType);
+                switch (aType) {
+                    case TrayEventHelp: {
+
+                    }
+                    break;
+                    case TrayEventSettings: {
+                        mSettingsWidget.show();
+                    }
+                    break;
+                    case TrayEventPrivate: {
+                        onPrivateBrowsingClicked();
+                    }
+                    break;
+                }
                 mAudioEngine.playSound(AudioEngine.Sound.CLICK);
             }
         });
@@ -491,6 +552,49 @@ public class VRBrowserActivity extends PlatformActivity implements WidgetManager
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (mPermissionDelegate != null) {
             mPermissionDelegate.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+    public void onPrivateBrowsingClicked() {
+        GeckoSession currentSession = SessionStore.get().getCurrentSession();
+        boolean isPrivateMode  = currentSession.getSettings().getBoolean(GeckoSessionSettings.USE_PRIVATE_MODE);
+
+        if (!isPrivateMode) {
+            fadeOutWorld();
+            // TODO: Fade out the browser window. Waiting for https://github.com/MozillaReality/FirefoxReality/issues/77
+
+            mCurrentSessionId = SessionStore.get().getCurrentSessionId();
+
+            SessionStore.SessionSettings settings = new SessionStore.SessionSettings();
+            settings.privateMode = true;
+            int id = SessionStore.get().createSession(settings);
+            SessionStore.get().setCurrentSession(id);
+            SessionStore.get().loadUri("http://www.mozilla.com");
+
+            mNavigationBar.setPrivateBrowsingEnabled(true);
+            mTopBar.setPrivateBrowsingEnabled(true);
+            mBrowserWidget.setPrivateBrowsingEnabled(true);
+        }
+    }
+
+    // TopBarDelegate
+    @Override
+    public void onCloseClicked() {
+        GeckoSession currentSession = SessionStore.get().getCurrentSession();
+        boolean isPrivateMode  = currentSession.getSettings().getBoolean(GeckoSessionSettings.USE_PRIVATE_MODE);
+
+        if (isPrivateMode) {
+            fadeInWorld();
+            // TODO: Fade in the browser window. Waiting for https://github.com/MozillaReality/FirefoxReality/issues/77
+
+            int privateSessionId = SessionStore.get().getCurrentSessionId();
+            SessionStore.get().setCurrentSession(mCurrentSessionId);
+
+            mNavigationBar.setPrivateBrowsingEnabled(false);
+            mTopBar.setPrivateBrowsingEnabled(false);
+            mBrowserWidget.setPrivateBrowsingEnabled(false);
+
+            SessionStore.get().removeSession(privateSessionId);
         }
     }
 

@@ -83,9 +83,9 @@ namespace {
         iconState = aIconState;
         vrb::Color color = ambient;
         if (iconState == IconState::Hovered) {
-          color = Color(0xEE513FFF);
+          color = Color(0xE2E6EBFF);
         } else if (iconState == IconState::Pressed) {
-          color = Color(0xF7CE4DFF);
+          color = Color(0x232426FF);
         }
         vrb::RenderStatePtr renderState = icon->GetRenderState();
         if (renderState) {
@@ -96,10 +96,10 @@ namespace {
 
     bool Intersect(const vrb::Vector& aStartPoint, const vrb::Vector& aDirection, vrb::Vector& aResult, bool& aInside) {
       const float dotNormals = aDirection.Dot(colliderNormal);
-      if (dotNormals > -kEpsilon) {
-        // Not pointed at the plane
-        return false;
-      }
+//      if (dotNormals > -kEpsilon) {
+//        // Not pointed at the plane
+//        return false;
+//      }
       const float dotV = (colliderMin - aStartPoint).Dot(colliderNormal);
 
       if ((dotV < kEpsilon) && (dotV > -kEpsilon)) {
@@ -152,7 +152,7 @@ namespace crow {
   void
   Tray::Load(const vrb::NodeFactoryObjPtr& aFactory, const vrb::ParserObjPtr& aParser) {
     aFactory->SetModelRoot(m.transform);
-    aParser->LoadModel("tray.obj");
+    aParser->LoadModel("Minitray.obj");
 
     m.icons = {
        TrayIcon::Create("Help", IconHelp, "Button1"),

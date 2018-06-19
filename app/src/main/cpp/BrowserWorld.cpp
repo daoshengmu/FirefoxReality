@@ -706,7 +706,7 @@ BrowserWorld::InitializeJava(JNIEnv* aEnv, jobject& aActivity, jobject& aAssetMa
     m.skybox = CreateSkyBox("cubemap/space");
     m.rootOpaqueParent->AddNode(m.skybox);
     CreateFloor();
-    // CreateTray();
+    CreateTray();
     m.controllers->modelsLoaded = true;
     m.fadeBlitter = FadeBlitter::Create(m.contextWeak);
   }
@@ -1080,8 +1080,8 @@ BrowserWorld::CreateTray() {
   m.tray->Load(m.factory, m.parser);
   m.rootOpaque->AddNode(m.tray->GetRoot());
 
-  vrb::Matrix transform = vrb::Matrix::Rotation(vrb::Vector(1.0f, 0.0f, 0.0f), 40.0f * M_PI/180.0f);
-  transform.TranslateInPlace(Vector(0.0f, 0.1f, -1.2f));
+  vrb::Matrix transform = vrb::Matrix::Rotation(vrb::Vector(1.0f, 0.0f, 0.0f), -40.0f * M_PI/180.0f);
+  transform.TranslateInPlace(Vector(0.0f, 0.0f, -3.0f));
   m.tray->SetTransform(transform);
 }
 
