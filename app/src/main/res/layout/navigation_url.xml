@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android">
+
     <EditText
         android:id="@+id/urlEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginStart="0dp"
-        android:paddingStart="20dp"
-        android:paddingEnd="40dp"
+        android:background="@drawable/url_background"
         android:ems="10"
         android:inputType="textUri"
-        android:background="@drawable/url_background"
+        android:paddingEnd="40dp"
+        android:paddingStart="20dp"
+        android:selectAllOnFocus="true"
         android:textColor="@color/fog"
-        android:selectAllOnFocus="true" />
+        android:textColorHighlight="@color/dusk" />
 
     <RelativeLayout
         android:id="@+id/urlLeftContainer"
