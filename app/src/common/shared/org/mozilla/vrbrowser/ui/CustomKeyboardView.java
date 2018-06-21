@@ -16,6 +16,8 @@
 
 package org.mozilla.vrbrowser.ui;
 
+import android.animation.TimeInterpolator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -32,7 +34,6 @@ import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Message;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.Gravity;
@@ -1096,8 +1097,43 @@ public class CustomKeyboardView extends View implements View.OnClickListener {
         }
         mOldPointerCount = pointerCount;
 
+        // Support for state transitions
+        ValueAnimator animator = ValueAnimator.ofInt(0, 255);
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                if (mHoveredKey > 0 && mHoveredKey < mKeys.length) {
+                    mKeyBackground.setAlpha((Integer)animation.getAnimatedValue());
+                    if (mKeys[mHoveredKey].icon != null)
+                        mKeys[mHoveredKey].icon.setAlpha((Integer)animation.getAnimatedValue());
+
+                    if (mHoveredKey != NOT_A_KEY) {
+                        invalidateKey(mHoveredKey);
+                    }
+                }
+            }
+        });
+        animator.setInterpolator(new EaseInOutCubicInterpolator());
+        animator.setDuration(600);
+        animator.start();
+
         return result;
     }
+
+    public class EaseInOutCubicInterpolator implements TimeInterpolator {
+
+        @Override
+        public float getInterpolation(float v) {
+            if ((v *= 2) < 1) {
+                return (float) (0.5 * Math.pow(v, 3));
+            }
+
+            return (float) (1 - 0.5 * Math.abs(Math.pow(2 - v, 3)));
+        }
+    }
+
+    ValueAnimator animator;
+    EaseInOutCubicInterpolator interpolator;
 
     // Fork: Implement keyboard hover events
     @Override
@@ -1113,7 +1149,7 @@ public class CustomKeyboardView extends View implements View.OnClickListener {
             keyIndex = getKeyIndices(touchX, touchY, null);
         }
 
-        int prevHovered = mHoveredKey;
+        final int prevHovered = mHoveredKey;
         mHoveredKey = keyIndex;
         if (mHoveredKey != NOT_A_KEY && prevHovered != mHoveredKey) {
             invalidateKey(mHoveredKey);
@@ -1121,6 +1157,36 @@ public class CustomKeyboardView extends View implements View.OnClickListener {
         if (prevHovered != NOT_A_KEY && prevHovered != mHoveredKey) {
             invalidateKey(prevHovered);
         }
+
+        if (mHoveredKey == NOT_A_KEY) {
+            if (animator != null) {
+                animator.end();
+                animator.cancel();
+            }
+        }
+
+        if (mHoveredKey != NOT_A_KEY && prevHovered != mHoveredKey) {
+            // Support for state transitions
+            animator = ValueAnimator.ofInt(0, 255);
+            animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    if ((mHoveredKey > 0 && mHoveredKey < mKeys.length)) {
+                        mKeyBackground.setAlpha((Integer) animation.getAnimatedValue());
+                        if (mKeys[mHoveredKey].icon != null)
+                            mKeys[mHoveredKey].icon.setAlpha((Integer) animation.getAnimatedValue());
+
+                        if (mHoveredKey != NOT_A_KEY && prevHovered != mHoveredKey) {
+                            invalidateKey(mHoveredKey);
+                        }
+                    }
+                }
+            });
+            animator.setInterpolator(new EaseInOutCubicInterpolator());
+            animator.setDuration(600);
+            animator.start();
+        }
+
         return result;
     }
 
