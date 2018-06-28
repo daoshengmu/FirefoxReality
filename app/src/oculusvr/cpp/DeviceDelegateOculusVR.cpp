@@ -301,8 +301,6 @@ const std::string
 DeviceDelegateOculusVR::GetControllerModelName(const int32_t aModelIndex) const {
   // FIXME: Need Oculus based controller
   static const std::string name("vr_controller_oculusgo.OBJ");
-//  static const std::string name("vr_controller_daydream.OBJ");
-//  static const std::string name("vr_controller_focus.OBJ");
   return aModelIndex == 0 ? name : "";
 }
 
