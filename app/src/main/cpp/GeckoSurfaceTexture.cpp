@@ -19,6 +19,7 @@ static jobject sActivity;
 static jclass sGeckoSurfaceTextureClass;
 static jmethodID sLookup;
 static jmethodID sAttachToGLContext;
+static jmethodID sIsAttachedToGLContext;
 static jmethodID sDetachFromGLContext;
 static jmethodID sUpdateTexImage;
 static jmethodID sReleaseTexImage;
@@ -30,6 +31,8 @@ static const char* kLookupName = "lookup";
 static const char* kLookupSignature = "(I)Lorg/mozilla/gecko/gfx/GeckoSurfaceTexture;";
 static const char* kAttachToGLContextName = "attachToGLContext";
 static const char* kAttachToGLContextSignature = "(JI)V";
+static const char* kIsAttachedToGLContextName = "isAttachedToGLContext";
+static const char* kIsAttachedToGLContextSignature = "(J)Z";
 static const char* kDetachFromGLContextName = "detachFromGLContext";
 static const char* kDetachFromGLContextSignature = "()V";
 static const char* kUpdateTexImageName = "updateTexImage";
@@ -83,6 +86,7 @@ GeckoSurfaceTexture::InitializeJava(JNIEnv* aEnv, jobject aActivity) {
   sEnv->DeleteLocalRef(foundClass);
   sLookup = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kLookupName, kLookupSignature, /*aIsStatic*/ true);
   sAttachToGLContext = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kAttachToGLContextName, kAttachToGLContextSignature);
+  sIsAttachedToGLContext = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kIsAttachedToGLContextName, kIsAttachedToGLContextSignature);
   sDetachFromGLContext = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kDetachFromGLContextName, kDetachFromGLContextSignature);
   sUpdateTexImage = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kUpdateTexImageName, kUpdateTexImageSignature);
   sReleaseTexImage = FindJNIMethodID(sEnv, sGeckoSurfaceTextureClass, kReleaseTexImageName, kReleaseTexImageSignature);
@@ -148,6 +152,14 @@ GeckoSurfaceTexture::AttachToGLContext(EGLContext aContext) {
   VRB_GL_CHECK(glGenTextures(1, &(m.texture)));
   sEnv->CallVoidMethod(m.surface, sAttachToGLContext, (jlong)aContext, (jint)m.texture);
   CheckJNIException(sEnv, __FUNCTION__);
+}
+
+bool
+GeckoSurfaceTexture::IsAttachedToGLContext(EGLContext aContext) const {
+  if (!ValidateMethodID(sEnv, m.surface, sIsAttachedToGLContext, __FUNCTION__)) { return false; }
+  bool result = sEnv->CallBooleanMethod(m.surface, sIsAttachedToGLContext, (jlong)aContext);
+  CheckJNIException(sEnv, __FUNCTION__);
+  return result;
 }
 
 void

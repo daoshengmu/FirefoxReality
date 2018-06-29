@@ -25,6 +25,7 @@ public:
   static GeckoSurfaceTexturePtr Create(const int32_t aHandle);
   GLuint GetTextureName();
   void AttachToGLContext(EGLContext aContext);
+  bool IsAttachedToGLContext(EGLContext aContext) const;
   void DetachFromGLContext();
   void UpdateTexImage();
   void ReleaseTexImage();

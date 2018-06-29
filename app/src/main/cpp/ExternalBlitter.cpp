@@ -90,17 +90,27 @@ ExternalBlitter::Update(const int32_t aSurfaceHandle, const device::EyeRect& aLe
   if (iter == m.surfaceMap.end()) {
     VRB_LOG("Creating GeckoSurfaceTexture for handle: %d", aSurfaceHandle);
     m.surface = GeckoSurfaceTexture::Create(aSurfaceHandle);
-    m.surface->AttachToGLContext(eglGetCurrentContext());
     m.surfaceMap[aSurfaceHandle] = m.surface;
   } else {
     m.surface = iter->second;
+  }
+
+  EGLContext  ctx = eglGetCurrentContext();
+  if (!m.surface->IsAttachedToGLContext(ctx)) {
+    VRB_LOG("GeckoSurfaceTexture attach to GLContext");
+    m.surface->AttachToGLContext(ctx);
+    VRB_GL_CHECK(glBindTexture(GL_TEXTURE_EXTERNAL_OES, m.surface->GetTextureName()));
+    VRB_GL_CHECK(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    VRB_GL_CHECK(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    VRB_GL_CHECK(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    VRB_GL_CHECK(glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
   }
 
   if (!m.surface) {
     VRB_LOG("Failed to find GeckoSurfaceTexture for handle: %d", aSurfaceHandle);
     return;
   }
-  //m.surface->DetachFromGLContext();
+
   m.surface->UpdateTexImage();
   m.eyes[device::EyeIndex(device::Eye::Left)] = aLeftEye;
   m.eyes[device::EyeIndex(device::Eye::Right)] = aRightEye;
