@@ -39,5 +39,7 @@
                 <data android:scheme="https" />
             </intent-filter>
         </activity>
+        <service android:name=".CrashHandler" android:exported="false" android:process=":crash">
+        </service>
     </application>
 </manifest>
