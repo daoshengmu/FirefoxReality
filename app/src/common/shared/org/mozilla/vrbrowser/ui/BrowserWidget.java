@@ -19,7 +19,7 @@ import android.view.animation.AnimationUtils;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
-import org.mozilla.gecko.gfx.GeckoDisplay;
+import org.mozilla.geckoview.GeckoDisplay;
 import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoSessionSettings;
 import org.mozilla.vrbrowser.*;
