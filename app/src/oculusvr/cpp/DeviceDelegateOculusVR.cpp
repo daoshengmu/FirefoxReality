@@ -610,6 +610,8 @@ struct DeviceDelegateOculusVR::State {
   ovrJava java = {};
   ovrMobile* ovr = nullptr;
   OculusEyeSwapChainPtr eyeSwapChains[VRAPI_EYE_COUNT];
+  const static uint32_t EYE_SURFACE_COUNT = 2;
+  ovrTextureSwapChain* eyeSurfaceSwapChain[EYE_SURFACE_COUNT];
   OculusLayerCubePtr cubeLayer;
   OculusLayerEquirectPtr equirectLayer;
   std::vector<OculusLayerPtr> uiLayers;
@@ -1098,6 +1100,17 @@ DeviceDelegateOculusVR::SetRenderMode(const device::RenderMode aMode) {
   vrb::RenderContextPtr render = m.context.lock();
   for (int i = 0; i < VRAPI_EYE_COUNT; ++i) {
     m.eyeSwapChains[i]->Init(render, m.renderMode, m.renderWidth, m.renderHeight);
+    // auto surfaceOut = vrapi_GetTextureSwapChainAndroidSurface(m.eyeSwapChains[i]->ovrSwapChain);
+    // surfaceOut is null from vrapi_GetTextureSwapChainAndroidSurface(m.eyeSwapChains[i]->ovrSwapChain);.
+  }
+
+  for (int i = 0; i < DeviceDelegateOculusVR::State::EYE_SURFACE_COUNT; ++i) {
+    if (!m.eyeSurfaceSwapChain[i]) {
+      m.eyeSurfaceSwapChain[i] = vrapi_CreateAndroidSurfaceSwapChain(m.renderWidth, m.renderHeight);
+      auto surfaceOut = vrapi_GetTextureSwapChainAndroidSurface(m.eyeSurfaceSwapChain[i]);
+      surfaceOut = m.java.Env->NewGlobalRef(surfaceOut);
+      VRBrowser::SetExternalVRSurface(i, surfaceOut);
+    }
   }
 
   m.UpdateTrackingMode();
@@ -1443,13 +1456,30 @@ DeviceDelegateOculusVR::EndFrame(const bool aDiscard) {
   projection.HeadPose = m.predictedTracking.HeadPose;
   projection.Header.SrcBlend = VRAPI_FRAME_LAYER_BLEND_ONE;
   projection.Header.DstBlend = VRAPI_FRAME_LAYER_BLEND_ONE_MINUS_SRC_ALPHA;
-  for (int i = 0; i < VRAPI_FRAME_LAYER_EYE_MAX; ++i) {
-    const auto &eyeSwapChain = m.eyeSwapChains[i];
-    const int swapChainIndex = m.frameIndex % eyeSwapChain->swapChainLength;
-    // Set up OVR layer textures
-    projection.Textures[i].ColorSwapChain = eyeSwapChain->ovrSwapChain;
-    projection.Textures[i].SwapChainIndex = swapChainIndex;
-    projection.Textures[i].TexCoordsFromTanAngles = ovrMatrix4f_TanAngleMatrixFromProjection(&projectionMatrix);
+
+  if (m.renderMode == device::RenderMode::StandAlone) {
+    for (int i = 0; i < VRAPI_FRAME_LAYER_EYE_MAX; ++i) {
+      const auto &eyeSwapChain = m.eyeSwapChains[i];
+      const int swapChainIndex = m.frameIndex % eyeSwapChain->swapChainLength;
+      // Set up OVR layer textures
+      projection.Textures[i].ColorSwapChain = eyeSwapChain->ovrSwapChain;
+      projection.Textures[i].SwapChainIndex = swapChainIndex;
+      projection.Textures[i].TexCoordsFromTanAngles = ovrMatrix4f_TanAngleMatrixFromProjection(&projectionMatrix);
+    }
+  } else {
+    // Flip texCoord in vertical when using WebGL frame textures.
+    const ovrMatrix4f texFlip = ovrMatrix4f_CreateScale(1, -1, 1);
+    ovrMatrix4f proj = ovrMatrix4f_Multiply(&projectionMatrix, &texFlip);
+    proj = ovrMatrix4f_TanAngleMatrixFromProjection(&proj);
+
+    for (int i = 0; i < VRAPI_FRAME_LAYER_EYE_MAX; ++i) {
+      const int swapChainIndex = 0;
+      const auto eyeSwapChain = m.eyeSurfaceSwapChain[swapChainIndex];
+      // Set up OVR layer textures
+      projection.Textures[i].ColorSwapChain = eyeSwapChain;
+      projection.Textures[i].SwapChainIndex = swapChainIndex; // TODO: using doubled buffer index
+      projection.Textures[i].TexCoordsFromTanAngles = proj;
+    }
   }
   layers[layerCount++] = &projection.Header;
 

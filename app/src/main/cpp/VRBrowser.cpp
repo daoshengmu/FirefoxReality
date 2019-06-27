@@ -48,6 +48,8 @@ const char* kSetDeviceType = "setDeviceType";
 const char* kSetDeviceTypeSignature = "(I)V";
 const char* kHaltActivity = "haltActivity";
 const char* kHaltActivitySignature = "(I)V";
+const char* kSetExternalVRSurface = "setExternalVRSurface";
+const char* kSetExternalVRSurfaceSignature = "(ILandroid/view/Surface;)V";//"(ILandroid/view/Surface;)Z";
 
 JNIEnv* sEnv;
 jclass sBrowserClass;
@@ -71,6 +73,7 @@ jmethodID sGetPointerColor;
 jmethodID sAreLayersEnabled;
 jmethodID sSetDeviceType;
 jmethodID sHaltActivity;
+jmethodID sSetExternalVRSurface;
 }
 
 namespace crow {
@@ -109,6 +112,7 @@ VRBrowser::InitializeJava(JNIEnv* aEnv, jobject aActivity) {
   sAreLayersEnabled = FindJNIMethodID(sEnv, sBrowserClass, kAreLayersEnabled, kAreLayersEnabledSignature);
   sSetDeviceType = FindJNIMethodID(sEnv, sBrowserClass, kSetDeviceType, kSetDeviceTypeSignature);
   sHaltActivity = FindJNIMethodID(sEnv, sBrowserClass, kHaltActivity, kHaltActivitySignature);
+  sSetExternalVRSurface = FindJNIMethodID(sEnv, sBrowserClass, kSetExternalVRSurface, kSetExternalVRSurfaceSignature);
 }
 
 void
@@ -142,6 +146,7 @@ VRBrowser::ShutdownJava() {
   sAreLayersEnabled = nullptr;
   sSetDeviceType = nullptr;
   sHaltActivity = nullptr;
+  sSetExternalVRSurface = nullptr;
   sEnv = nullptr;
 }
 
@@ -316,5 +321,10 @@ VRBrowser::HaltActivity(const jint aReason) {
   CheckJNIException(sEnv, __FUNCTION__);
 }
 
-
+void
+VRBrowser::SetExternalVRSurface(jint aIndex, jobject aSurface) {
+  if (!ValidateMethodID(sEnv, sActivity, sSetExternalVRSurface, __FUNCTION__)) { return; }
+  sEnv->CallVoidMethod(sActivity, sSetExternalVRSurface, aIndex, aSurface);
+  CheckJNIException(sEnv, __FUNCTION__);
+}
 } // namespace crow
