@@ -1159,13 +1159,17 @@ BrowserWorld::DrawImmersive() {
       if (textureWidth > 0 && textureHeight > 0) {
         m.device->SetImmersiveSize((uint32_t) textureWidth/2, (uint32_t) textureHeight);
       }
-      m.blitter->StartFrame(surfaceHandle, leftEye, rightEye);
-      m.device->BindEye(device::Eye::Left);
-      m.blitter->Draw(device::Eye::Left);
+      // In Oculus platform, we can render WebGL immersive frames info AndroidSurface.
+      if ((m.device->GetDeviceType() != device::OculusGo) &&
+        (m.device->GetDeviceType() != device::OculusQuest)) {
+        m.blitter->StartFrame(surfaceHandle, leftEye, rightEye);
+        m.device->BindEye(device::Eye::Left);
+        m.blitter->Draw(device::Eye::Left);
 #if !defined(VRBROWSER_NO_VR_API)
-      m.device->BindEye(device::Eye::Right);
-      m.blitter->Draw(device::Eye::Right);
+        m.device->BindEye(device::Eye::Right);
+        m.blitter->Draw(device::Eye::Right);
 #endif // !defined(VRBROWSER_NO_VR_API)
+      }
     }
     m.device->EndFrame(aDiscardFrame);
     m.blitter->EndFrame();

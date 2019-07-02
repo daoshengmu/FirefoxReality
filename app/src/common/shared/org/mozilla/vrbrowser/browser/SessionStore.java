@@ -33,6 +33,7 @@ import org.mozilla.vrbrowser.R;
 import org.mozilla.vrbrowser.crashreporting.CrashReporterService;
 import org.mozilla.vrbrowser.geolocation.GeolocationData;
 import org.mozilla.vrbrowser.telemetry.TelemetryWrapper;
+import org.mozilla.vrbrowser.utils.DeviceType;
 import org.mozilla.vrbrowser.utils.InternalPages;
 
 import java.io.File;
@@ -759,7 +760,6 @@ public class SessionStore implements ContentBlocking.Delegate, GeckoSession.Navi
             out.write("pref(\"dom.vr.enabled\", true);\n".getBytes());
             out.write("pref(\"dom.vr.external.enabled\", true);\n".getBytes());
             out.write("pref(\"webgl.enable-surface-texture\", true);\n".getBytes());
-            out.write("pref(\"webgl.enable-externalvr-surface\", true);\n".getBytes());
             // Enable MultiView draft extension
             out.write("pref(\"webgl.enable-draft-extensions\", true);\n".getBytes());
             out.write("pref(\"apz.allow_double_tap_zooming\", false);\n".getBytes());
@@ -782,6 +782,12 @@ public class SessionStore implements ContentBlocking.Delegate, GeckoSession.Navi
                 out.write("pref(\"media.autoplay.enabled.user-gestures-needed\", false);\n".getBytes());
                 out.write("pref(\"media.autoplay.enabled.ask-permission\", false);\n".getBytes());
                 out.write("pref(\"media.autoplay.default\", 0);\n".getBytes());
+            }
+            // In Oculus platform, we can render WebGL immersive frames info AndroidSurface.
+            if (DeviceType.isOculusBuild()) {
+                out.write("pref(\"webgl.enable-externalvr-surface\", true);\n".getBytes());
+            } else {
+                out.write("pref(\"webgl.enable-externalvr-surface\", false);\n".getBytes());
             }
         } catch (FileNotFoundException e) {
             Log.e(LOGTAG, "Unable to create file: '" + prefFileName + "' got exception: " + e.toString());
