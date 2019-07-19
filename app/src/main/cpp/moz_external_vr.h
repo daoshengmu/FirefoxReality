@@ -12,18 +12,24 @@
    (uint64_t)(c4) << 32 | (uint64_t)(c5) << 24 | (uint64_t)(c6) << 16 | \
    (uint64_t)(c7) << 8 | (uint64_t)(c8))
 
-#include <stddef.h>
-#include <stdint.h>
-#include <type_traits>
-
 #ifdef MOZILLA_INTERNAL_API
+#  define __STDC_WANT_LIB_EXT1__ 1
+// __STDC_WANT_LIB_EXT1__ required for memcpy_s
+#  include <stdlib.h>
+#  include <string.h>
 #  include "mozilla/TypedEnumBits.h"
 #  include "mozilla/gfx/2D.h"
+#  include <stddef.h>
+#  include <stdint.h>
+#  include <type_traits>
 #endif  // MOZILLA_INTERNAL_API
 
 #if defined(__ANDROID__)
 #  include <pthread.h>
 #endif  // defined(__ANDROID__)
+
+#include <cstdint>
+#include <type_traits>
 
 namespace mozilla {
 #ifdef MOZILLA_INTERNAL_API
@@ -34,7 +40,7 @@ enum class GamepadCapabilityFlags : uint16_t;
 #endif  //  MOZILLA_INTERNAL_API
 namespace gfx {
 
-static const int32_t kVRExternalVersion = 8;
+static const int32_t kVRExternalVersion = 9;
 
 // We assign VR presentations to groups with a bitmask.
 // Currently, we will only display either content or chrome.
@@ -88,26 +94,26 @@ enum class ControllerCapabilityFlags : uint16_t {
   /**
    * Cap_Position is set if the Gamepad is capable of tracking its position.
    */
-      Cap_Position = 1 << 1,
+  Cap_Position = 1 << 1,
   /**
    * Cap_Orientation is set if the Gamepad is capable of tracking its
    * orientation.
    */
-      Cap_Orientation = 1 << 2,
+  Cap_Orientation = 1 << 2,
   /**
    * Cap_AngularAcceleration is set if the Gamepad is capable of tracking its
    * angular acceleration.
    */
-      Cap_AngularAcceleration = 1 << 3,
+  Cap_AngularAcceleration = 1 << 3,
   /**
    * Cap_LinearAcceleration is set if the Gamepad is capable of tracking its
    * linear acceleration.
    */
-      Cap_LinearAcceleration = 1 << 4,
+  Cap_LinearAcceleration = 1 << 4,
   /**
    * Cap_All used for validity checking during IPC serialization
    */
-      Cap_All = (1 << 5) - 1
+  Cap_All = (1 << 5) - 1
 };
 
 #endif  // ifndef MOZILLA_INTERNAL_API
@@ -117,12 +123,12 @@ enum class VRDisplayCapabilityFlags : uint16_t {
   /**
    * Cap_Position is set if the VRDisplay is capable of tracking its position.
    */
-      Cap_Position = 1 << 1,
+  Cap_Position = 1 << 1,
   /**
    * Cap_Orientation is set if the VRDisplay is capable of tracking its
    * orientation.
    */
-      Cap_Orientation = 1 << 2,
+  Cap_Orientation = 1 << 2,
   /**
    * Cap_Present is set if the VRDisplay is capable of presenting content to an
    * HMD or similar device.  Can be used to indicate "magic window" devices that
@@ -130,7 +136,7 @@ enum class VRDisplayCapabilityFlags : uint16_t {
    * meaningful. If false then calls to requestPresent should always fail, and
    * getEyeParameters should return null.
    */
-      Cap_Present = 1 << 3,
+  Cap_Present = 1 << 3,
   /**
    * Cap_External is set if the VRDisplay is separate from the device's
    * primary display. If presenting VR content will obscure
@@ -138,37 +144,37 @@ enum class VRDisplayCapabilityFlags : uint16_t {
    * un-set, the application should not attempt to mirror VR content
    * or update non-VR UI because that content will not be visible.
    */
-      Cap_External = 1 << 4,
+  Cap_External = 1 << 4,
   /**
    * Cap_AngularAcceleration is set if the VRDisplay is capable of tracking its
    * angular acceleration.
    */
-      Cap_AngularAcceleration = 1 << 5,
+  Cap_AngularAcceleration = 1 << 5,
   /**
    * Cap_LinearAcceleration is set if the VRDisplay is capable of tracking its
    * linear acceleration.
    */
-      Cap_LinearAcceleration = 1 << 6,
+  Cap_LinearAcceleration = 1 << 6,
   /**
    * Cap_StageParameters is set if the VRDisplay is capable of room scale VR
    * and can report the StageParameters to describe the space.
    */
-      Cap_StageParameters = 1 << 7,
+  Cap_StageParameters = 1 << 7,
   /**
    * Cap_MountDetection is set if the VRDisplay is capable of sensing when the
    * user is wearing the device.
    */
-      Cap_MountDetection = 1 << 8,
+  Cap_MountDetection = 1 << 8,
   /**
    * Cap_PositionEmulated is set if the VRDisplay is capable of setting a
    * emulated position (e.g. neck model) even if still doesn't support 6DOF
    * tracking.
    */
-      Cap_PositionEmulated = 1 << 9,
+  Cap_PositionEmulated = 1 << 9,
   /**
    * Cap_All used for validity checking during IPC serialization
    */
-      Cap_All = (1 << 10) - 1
+  Cap_All = (1 << 10) - 1
 };
 
 #ifdef MOZILLA_INTERNAL_API
@@ -284,6 +290,10 @@ struct VRDisplayState {
   // Telemetry
   bool reportsDroppedFrames;
   uint64_t droppedFrameCount;
+
+#ifdef MOZILLA_INTERNAL_API
+  void Clear() { memset(this, 0, sizeof(VRDisplayState)); }
+#endif
 };
 
 struct VRControllerState {
@@ -311,6 +321,9 @@ struct VRControllerState {
   VRPose pose;
   bool isPositionValid;
   bool isOrientationValid;
+#ifdef MOZILLA_INTERNAL_API
+  void Clear() { memset(this, 0, sizeof(VRControllerState)); }
+#endif
 };
 
 struct VRLayerEyeRect {
@@ -330,7 +343,8 @@ enum class VRLayerTextureType : uint16_t {
   LayerTextureType_None = 0,
   LayerTextureType_D3D10SurfaceDescriptor = 1,
   LayerTextureType_MacIOSurface = 2,
-  LayerTextureType_GeckoSurfaceTexture = 3
+  LayerTextureType_GeckoSurfaceTexture = 3,
+  LayerTextureType_ExternalVRSurface = 4,
 };
 
 struct VRLayer_2D_Content {
@@ -383,6 +397,10 @@ struct VRBrowserState {
   bool navigationTransitionActive;
   VRLayerState layerState[kVRLayerMaxCount];
   VRHapticState hapticState[kVRHapticsMaxCount];
+
+#ifdef MOZILLA_INTERNAL_API
+  void Clear() { memset(this, 0, sizeof(VRBrowserState)); }
+#endif
 };
 
 struct VRSystemState {
@@ -417,6 +435,28 @@ struct VRExternalShmem {
   int64_t geckoGenerationB;
   int64_t servoGenerationB;
 #endif  // !defined(__ANDROID__)
+#ifdef MOZILLA_INTERNAL_API
+  void Clear() volatile {
+/**
+ * When possible we do a memset_s, which is explicitly safe for
+ * the volatile, POD struct.  A memset may be optimized out by
+ * the compiler and will fail to compile due to volatile keyword
+ * propagation.
+ *
+ * A loop-based fallback is provided in case the toolchain does
+ * not include STDC_LIB_EXT1 for memset_s.
+ */
+#  ifdef __STDC_LIB_EXT1__
+    memset_s((void*)this, sizeof(VRExternalShmem), 0, sizeof(VRExternalShmem));
+#  else
+    size_t remaining = sizeof(VRExternalShmem);
+    volatile unsigned char* d = (volatile unsigned char*)this;
+    while (remaining--) {
+      *d++ = 0;
+    }
+#  endif
+  }
+#endif
 };
 
 // As we are memcpy'ing VRExternalShmem and its members around, it must be a POD

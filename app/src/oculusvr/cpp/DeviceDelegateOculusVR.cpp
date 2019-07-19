@@ -1466,18 +1466,18 @@ DeviceDelegateOculusVR::EndFrame(const bool aDiscard) {
       projection.Textures[i].SwapChainIndex = swapChainIndex;
       projection.Textures[i].TexCoordsFromTanAngles = ovrMatrix4f_TanAngleMatrixFromProjection(&projectionMatrix);
     }
-  } else {
+  } else if (externalSurfaceId >= 0) {
+    const int swapChainIndex = externalSurfaceId;
     // Flip texCoord in vertical when using WebGL frame textures.
     const ovrMatrix4f texFlip = ovrMatrix4f_CreateScale(1, -1, 1);
     ovrMatrix4f proj = ovrMatrix4f_Multiply(&projectionMatrix, &texFlip);
     proj = ovrMatrix4f_TanAngleMatrixFromProjection(&proj);
 
     for (int i = 0; i < VRAPI_FRAME_LAYER_EYE_MAX; ++i) {
-      const int swapChainIndex = 0;
       const auto eyeSwapChain = m.eyeSurfaceSwapChain[swapChainIndex];
       // Set up OVR layer textures
       projection.Textures[i].ColorSwapChain = eyeSwapChain;
-      projection.Textures[i].SwapChainIndex = swapChainIndex; // TODO: using doubled buffer index
+      projection.Textures[i].SwapChainIndex = swapChainIndex;
       projection.Textures[i].TexCoordsFromTanAngles = proj;
     }
   }
@@ -1507,6 +1507,11 @@ DeviceDelegateOculusVR::EndFrame(const bool aDiscard) {
   frameDesc.Layers = layers;
 
   vrapi_SubmitFrame2(m.ovr, &frameDesc);
+}
+
+void
+DeviceDelegateOculusVR::SetExternalSurfId(int32_t aSurfId) {
+  externalSurfaceId = aSurfId;
 }
 
 VRLayerQuadPtr
@@ -1713,7 +1718,7 @@ DeviceDelegateOculusVR::ExitApp() {
   return true;
 }
 
-DeviceDelegateOculusVR::DeviceDelegateOculusVR(State &aState) : m(aState) {}
+DeviceDelegateOculusVR::DeviceDelegateOculusVR(State &aState) : m(aState), externalSurfaceId(-1) {}
 
 DeviceDelegateOculusVR::~DeviceDelegateOculusVR() { m.Shutdown(); }
 

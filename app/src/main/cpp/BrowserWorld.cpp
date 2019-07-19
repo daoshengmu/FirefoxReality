@@ -1149,10 +1149,11 @@ BrowserWorld::DrawImmersive() {
   m.device->StartFrame();
   VRB_GL_CHECK(glDepthMask(GL_FALSE));
   m.externalVR->PushFramePoses(m.device->GetHeadTransform(), m.controllers->GetControllers(), m.context->GetTimestamp());
+  mozilla::gfx::VRLayerTextureType surfaceType;
   int32_t surfaceHandle, textureWidth, textureHeight = 0;
   device::EyeRect leftEye, rightEye;
   bool aDiscardFrame = !m.externalVR->WaitFrameResult();
-  m.externalVR->GetFrameResult(surfaceHandle, textureWidth, textureHeight, leftEye, rightEye);
+  m.externalVR->GetFrameResult(surfaceType, surfaceHandle, textureWidth, textureHeight, leftEye, rightEye);
   ExternalVR::VRState state = m.externalVR->GetVRState();
   if (state == ExternalVR::VRState::Rendering) {
     if (!aDiscardFrame) {
@@ -1171,6 +1172,10 @@ BrowserWorld::DrawImmersive() {
 #endif // !defined(VRBROWSER_NO_VR_API)
       }
     }
+
+    if (surfaceType == mozilla::gfx::VRLayerTextureType::LayerTextureType_ExternalVRSurface) {
+      m.device->SetExternalSurfId(surfaceHandle);
+    }
     m.device->EndFrame(aDiscardFrame);
     m.blitter->EndFrame();
   } else {
@@ -1178,6 +1183,12 @@ BrowserWorld::DrawImmersive() {
       m.blitter->CancelFrame(surfaceHandle);
     }
     DrawLoadingAnimation();
+
+    if ((m.device->GetDeviceType() != device::OculusGo) &&
+        (m.device->GetDeviceType() != device::OculusQuest)) {
+      // Reset surface id when existing the external immersive mode.
+      m.device->SetExternalSurfId(-1);
+    }
     m.device->EndFrame(false);
   }
 }
